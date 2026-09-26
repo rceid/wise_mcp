@@ -13,7 +13,9 @@ jobs:
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      # setup-uv publishes no major-version tag (v10) since v8, so pin the exact release.
+      # Pinned by commit SHA because a tag can be moved to point at different code.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked
