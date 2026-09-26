@@ -33,9 +33,9 @@ class TestShippedFile:
         assert suffixed
         assert all(m.better == "lower" for m in suffixed)
 
-    def test_gaps_aim_for_a_target(self, measures):
+    def test_gaps_and_balances_aim_for_a_target(self, measures):
         targets = {m.code: m.target for m in measures.values() if m.better == "target"}
-        assert targets == {"2_2": 0, "4_3": 0, "14_5": 50}
+        assert targets == {"2_2": 0, "4_3": 0, "14_5": 50, "12_11": 0}
 
     @pytest.mark.parametrize(
         ("code", "better"),

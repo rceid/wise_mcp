@@ -314,7 +314,8 @@
   better: higher
   headline: horizontal_inequality
   threshold: 3
-  note: The headline indicator is the gap between women and men in this measure, not its average.
+  note: "The headline indicator is the gap between women and men in this measure, not its average.
+    The goal for that gap is zero."
 "10_2_DEP":  # Not feeling safe at night [Percentage of population aged 15 years or over]
   better: lower
   note: Not the exact complement of 10_2. No published threshold.
@@ -398,9 +399,12 @@
   threshold: 2.5
 "12_11":  # Soil nutrient balance [Kilogramme]
   name: Soil nutrient balance
-  better: lower
+  better: target
+  target: 0
   threshold: 5.5
-  note: Nitrogen surplus per hectare. Negative values are a deficit, which is not good for soils either.
+  note: "Nitrogen surplus per hectare. A surplus pollutes water and a deficit (negative values, only
+    Romania and South Africa) drains nutrients from the soil, so the goal is balance. For OECD
+    members, all in surplus, this ranks exactly as 'lower is better' would."
 "12_12":  # Water stress (internal resources) [Percentage of internal renewable resources]
   name: Water stress (internal)
   better: lower
