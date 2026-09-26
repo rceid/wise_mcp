@@ -1,0 +1,42 @@
+[project]
+name = "wise-mcp"
+version = "0.1.0"
+description = "MCP server for the OECD How's Life? well-being database"
+readme = "README.md"
+authors = [
+    { name = "Raymond Eid" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "pandas>=3.0.6",
+    "platformdirs>=4.12.0",
+    "pyarrow>=25.0.1",
+]
+
+[project.scripts]
+wise-mcp-cache = "wise_mcp.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "respx>=0.23.1",
+    "ruff>=0.16.9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Live tests call the real OECD API and spend its ~60 requests/hour budget, so they only
+# run when asked for explicitly: `uv run pytest -m live`.
+addopts = "-m 'not live'"
+markers = ["live: calls the real OECD SDMX API"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
