@@ -18,8 +18,9 @@ DATAFLOWS = {
     "future": "DSD_HSL@DF_HSL_FWB",  # Resources for future well-being: 4 capitals
 }
 
-# How's Life? is revised once or twice a year, so a week-old copy is effectively current.
-CACHE_TTL = timedelta(days=7)
+# How's Life? is revised once or twice a year, so a month-old copy is effectively current. After
+# an OECD release, `wise-mcp-cache refresh` picks up the new data without waiting.
+CACHE_TTL = timedelta(days=30)
 
 # After a failed refresh (rate limited, offline), wait this long before trying again rather
 # than retrying on every read and spending more of the ~60 requests/hour budget.

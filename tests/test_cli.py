@@ -18,7 +18,7 @@ def test_status_after_refresh(tmp_path, monkeypatch, capsys, fetcher):
     assert main(["status"]) == 0
     out = capsys.readouterr().out
     assert "current: 288 rows, Current well-being" in out
-    assert "(fresh; refreshes after 7 days)" in out
+    assert "(fresh; refreshes after 30 days)" in out
 
 
 @respx.mock

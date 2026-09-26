@@ -15,7 +15,7 @@ uv run ruff check && uv run ruff format --check
 ### Data cache
 
 The whole How's Life? database is downloaded once (2 API requests) and kept locally, because the
-OECD API allows only about 60 requests per hour. It refreshes itself after 7 days.
+OECD API allows only about 60 requests per hour. It refreshes itself after 30 days.
 
 ```bash
 uv run wise-mcp-cache status     # what's cached, and when it was fetched
