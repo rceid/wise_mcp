@@ -17,7 +17,7 @@ pytestmark = pytest.mark.anyio
 
 TOOLS = {
     "find_measures", "describe_measure", "compare_countries", "trend", "group_gaps",
-    "country_profile", "better_life_36",
+    "country_profile", "country_trends", "better_life_36",
 }  # fmt: skip
 
 
@@ -47,6 +47,7 @@ async def test_tools_are_listed_as_read_only(client):
 async def test_claude_gets_the_house_rules(client):
     assert "Give the year of every figure" in client.instructions
     assert "Only the 38 OECD members" in client.instructions
+    assert "call country_trends once" in client.instructions
 
 
 async def test_find_measures(client):
@@ -89,7 +90,7 @@ async def test_country_profile_accepts_a_country_name(client):
     error, text = await call(client, "country_profile", country="france")
     assert not error
     assert "France (FRA)" in text
-    assert "Gender gap in feeling safe at night" in text
+    assert "| Gender gap in feeling safe at night | 10_2 |" in text  # codes save lookups
 
 
 async def test_better_life_36_with_weights(client):
@@ -132,7 +133,8 @@ async def test_data_is_downloaded_once_however_many_tools_are_called(client, fet
 async def test_country_briefing_prompt(client):
     prompt = await client.get_prompt("country_briefing", {"country": "France"})
     text = prompt.messages[0].content.text
-    assert "briefing on France" in text and "country_profile" in text
+    assert "briefing on France" in text
+    assert "country_profile" in text and "country_trends" in text
 
 
 async def test_the_server_command_speaks_mcp_over_stdio(tmp_path, fetcher):
@@ -175,3 +177,25 @@ def test_stdout_carries_only_protocol_messages(tmp_path, fetcher):
     assert lines, finished.stderr
     messages = [json.loads(line) for line in lines]  # fails on anything that isn't JSON
     assert messages[0]["id"] == 1 and "result" in messages[0]
+
+
+async def test_country_trends_answers_in_one_call(client):
+    # The fixture data start in 2018, so compare with 2019.
+    error, text = await call(client, "country_trends", country="France", since="2019")
+    assert not error
+    assert "France (FRA): How's Life? headline indicators, change since 2019" in text
+    assert "Current well-being:" in text
+    assert "| Safety | Gender gap in feeling safe at night | 10_2 | 2019: 8.51 |" in text
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("compare_countries", {"measure": "10_2"}),
+        ("trend", {"measure": "10_2", "since": "2019"}),
+        ("group_gaps", {"measure": "10_2", "by": "sex"}),
+    ],
+)
+async def test_the_measure_note_is_shown_by_every_tool(client, tool, arguments):
+    _, text = await call(client, tool, **arguments)
+    assert "About this measure: The headline indicator is the gap between women and men" in text

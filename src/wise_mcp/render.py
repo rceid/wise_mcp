@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from wise_mcp.analysis import Comparison, GroupGaps, Index, Profile, Trend
+from wise_mcp.analysis import Comparison, CountryTrends, GroupGaps, Index, Profile, Trend
 from wise_mcp.analysis.data import BREAKDOWNS
 
 
@@ -150,7 +150,7 @@ def trend(result: Trend) -> str:
         if oecd
         else "",
         table(["Country", "From", "To", "Change", "Assessment", "Series break"], rows),
-        caveats(result.caveats),
+        caveats(result.caveats, result.measure["note"]),
     )
 
 
@@ -185,7 +185,7 @@ def gaps(result: GroupGaps) -> str:
         "second. Groups within 0.03 of parity show no clear difference (How's Life? 2024).",
         oecd_line,
         table(["Country", "Year", *[names[g] for g in groups], "Better off", *pair_names], rows),
-        caveats(result.caveats),
+        caveats(result.caveats, result.measure["note"]),
     )
 
 
@@ -199,6 +199,7 @@ def profile(result: Profile, index_name: str) -> str:
         [
             row.dimension,
             row.name,
+            row.code,
             row.time_period,
             number(row.obs_value),
             number(row.oecd_average),
@@ -214,7 +215,17 @@ def profile(result: Profile, index_name: str) -> str:
         "Strengths (top third of OECD members): " + (", ".join(result.strengths) or "none"),
         "Weaknesses (bottom third): " + (", ".join(result.weaknesses) or "none"),
         table(
-            ["Dimension", "Indicator", "Year", "Value", "OECD average", "vs OECD", "Rank", "Tier"],
+            [
+                "Dimension",
+                "Indicator",
+                "Code",
+                "Year",
+                "Value",
+                "OECD average",
+                "vs OECD",
+                "Rank",
+                "Tier",
+            ],  # fmt: skip
             rows,
         ),
         caveats(result.caveats),
@@ -237,5 +248,51 @@ def index(result: Index) -> str:
         f"**{result.name}** (0 = the worst OECD member on every indicator, 1 = the best)",
         weights,
         table(["Rank", "Country", "Score", "Dimensions", "Indicators"], rows),
+        caveats(result.caveats),
+    )
+
+
+ASSESSMENTS = ["improving", "deteriorating", "no clear change", "no threshold", "insufficient data"]
+
+
+def country_trends(result: CountryTrends) -> str:
+    summary = [
+        f"{kind.capitalize()} well-being: "
+        + ", ".join(f"{counts[a]} {a}" for a in ASSESSMENTS if counts.get(a))
+        for kind, counts in result.summary.items()
+    ]
+    rows = [
+        [
+            row.dimension,
+            row.name,
+            row.code,
+            "–" if pd.isna(row.start_year) else f"{row.start_year}: {number(row.start_value)}",
+            "–" if pd.isna(row.end_year) else f"{row.end_year}: {number(row.end_value)}",
+            signed(row.change),
+            row.assessment,
+            row.oecd_assessment
+            + ("" if pd.isna(row.oecd_change) else f" ({signed(row.oecd_change)})"),
+            "yes" if row.series_break else "",
+        ]
+        for row in result.indicators.itertuples()
+    ]
+    return join(
+        f"**{result.name} ({result.ref_area}): How's Life? headline indicators, change "
+        f"{result.period}**",
+        "\n".join(summary),
+        table(
+            [
+                "Dimension",
+                "Indicator",
+                "Code",
+                "From",
+                "To",
+                "Change",
+                "Assessment",
+                "OECD average",
+                "Series break",
+            ],
+            rows,
+        ),  # fmt: skip
         caveats(result.caveats),
     )

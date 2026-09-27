@@ -27,6 +27,8 @@ INSTRUCTIONS = """\
 These tools answer questions with the OECD How's Life? well-being database, using the methods of \
 the How's Life? 2024 report. Follow these rules in every answer:
 - Look up measure codes with find_measures (or describe_measure); never guess them.
+- For how a country is doing over time, call country_trends once rather than trend for each \
+indicator. Use trend for one indicator across several countries.
 - Give the year of every figure: countries' latest years often differ.
 - The OECD average is a simple mean over OECD members with data. Say how many when it's fewer \
 than 38 (e.g. "OECD 34").
@@ -162,6 +164,25 @@ def create_server(store: DataStore | None = None) -> MCPServer:
         )
 
     @server.tool(annotations=READ_ONLY, structured_output=False)
+    def country_trends(
+        country: Annotated[str, Field(description='ISO code ("FRA") or English name ("France")')],
+        since: Annotated[
+            str,
+            Field(
+                description='"2010" for the medium term (the How\'s Life? default), "2019" for '
+                "the period since the pandemic, or any year."
+            ),
+        ] = "2010",  # fmt: skip
+    ) -> str:
+        """Is life getting better in one country? All 36 How's Life? headline indicators classed
+        as improving, deteriorating or no clear change since a baseline year, next to the OECD
+        average's change, in one call (How's Life? 2024, Chapter 4). Use this rather than calling
+        trend indicator by indicator."""
+        return answer(
+            lambda data: render.country_trends(analysis.country_trends(data, country, since=since))
+        )
+
+    @server.tool(annotations=READ_ONLY, structured_output=False)
     def better_life_36(
         weights: Annotated[
             dict[str, float] | None,
@@ -190,8 +211,8 @@ def create_server(store: DataStore | None = None) -> MCPServer:
             f"Write a short well-being briefing on {country}, in the style of a How's Life? 2024 "
             "country note.\n"
             f"1. Call country_profile for {country}.\n"
-            "2. For its two biggest strengths and two biggest weaknesses, call trend to see "
-            "whether they have improved since around 2010.\n"
+            f"2. Call country_trends for {country} to see which indicators have improved or "
+            "worsened since around 2010.\n"
             "3. Call group_gaps by sex for feeling safe at night (10_2).\n"
             "Structure it as: overall position (Better Life 36 ranks), strengths, weaknesses, "
             "trends, and one inequality. Give the year of every figure, compare with the OECD "

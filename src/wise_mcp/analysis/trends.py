@@ -92,16 +92,13 @@ def trend(
 
     # Every country is assessed so the OECD average covers all members, even when only a few
     # countries are shown.
-    rows, windows = [], []
-    for ref_area, country in series.groupby("ref_area"):
-        row = {"ref_area": ref_area, **_change(measure, country, period)}
-        rows.append(row)
-        if pd.notna(row["end_year"]):
-            years = country["time_period"].between(row["start_year"], row["end_year"])
-            windows.append(country[years])
-    changes = data.with_labels(pd.DataFrame(rows).astype(_CHANGE_TYPES))
-    window = pd.concat(windows) if windows else series.iloc[0:0]
-    oecd = _oecd_change(measure, changes)
+    changes = data.with_labels(changes_by_country(measure, series, period))
+    oecd = oecd_change(measure, changes)
+    bounds = series.merge(changes[["ref_area", "start_year", "end_year"]], on="ref_area")
+    in_period = (bounds["time_period"] >= bounds["start_year"]) & (
+        bounds["time_period"] <= bounds["end_year"]
+    )
+    window = series[in_period.fillna(False).to_numpy()]
     if countries is not None:
         changes = changes[changes["ref_area"].isin(countries)]
         window = window[window["ref_area"].isin(countries)]
@@ -116,11 +113,27 @@ def trend(
     )
 
 
-def _change(measure: Measure, country: pd.DataFrame, period: Period) -> dict[str, Any]:
-    empty = {
+def changes_by_country(measure: Measure, series: pd.DataFrame, period: Period) -> pd.DataFrame:
+    """Baseline, end, change and assessment for every country in a series from
+    `WellbeingData.series`."""
+    rows = [
+        {"ref_area": ref_area, **_change(measure, country, period)}
+        for ref_area, country in series.groupby("ref_area")
+    ]
+    columns = ["ref_area", *_CHANGE_TYPES, "assessment", "series_break"]
+    return pd.DataFrame(rows, columns=columns).astype(_CHANGE_TYPES)
+
+
+def no_change() -> dict[str, Any]:
+    """The row for a country without the data to assess a change."""
+    return {
         "start_year": pd.NA, "start_value": pd.NA, "end_year": pd.NA, "end_value": pd.NA,
         "change": pd.NA, "assessment": "insufficient data", "series_break": False,
     }  # fmt: skip
+
+
+def _change(measure: Measure, country: pd.DataFrame, period: Period) -> dict[str, Any]:
+    empty = no_change()
     in_window = country[country["time_period"].between(period.baseline_from, period.baseline_to)]
     if in_window.empty:
         return empty
@@ -143,7 +156,7 @@ def _change(measure: Measure, country: pd.DataFrame, period: Period) -> dict[str
     }
 
 
-def _oecd_change(measure: Measure, changes: pd.DataFrame) -> dict[str, Any] | None:
+def oecd_change(measure: Measure, changes: pd.DataFrame) -> dict[str, Any] | None:
     """The OECD average at baseline and at the end, over the same members (those with both
     values), so a change in which countries report can't masquerade as a change in well-being."""
     both = changes[changes["end_year"].notna()]

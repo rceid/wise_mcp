@@ -5,7 +5,13 @@ scores are worked out in the comments."""
 import pytest
 from builders import make_data, obs, series
 
-from wise_mcp.analysis import AnalysisError, country_profile, headline_scores, wellbeing_index
+from wise_mcp.analysis import (
+    AnalysisError,
+    country_profile,
+    country_trends,
+    headline_scores,
+    wellbeing_index,
+)
 from wise_mcp.analysis.headlines import _tier
 from wise_mcp.catalog import Measure
 
@@ -19,11 +25,11 @@ MEASURES = {
 }
 
 
-def feeling_safe(country, female, male):
+def feeling_safe(country, female, male, year=2022):
     return [
-        obs(country, "10_2", 2022, (female + male) / 2),
-        obs(country, "10_2", 2022, female, sex="F", unit="PT_SUB"),
-        obs(country, "10_2", 2022, male, sex="M", unit="PT_SUB"),
+        obs(country, "10_2", year, (female + male) / 2),
+        obs(country, "10_2", year, female, sex="F", unit="PT_SUB"),
+        obs(country, "10_2", year, male, sex="M", unit="PT_SUB"),
     ]
 
 
@@ -156,3 +162,50 @@ class TestCountryProfile:
 )  # fmt: skip
 def test_tiers_are_thirds_of_members_with_data(rank, out_of, tier):
     assert _tier(rank, out_of) == tier
+
+
+class TestCountryTrends:
+    MEASURES = {
+        "1_1": Measure("1_1", "higher", headline="average", threshold=1000, name="Income"),
+        "1_2": Measure("1_2", "lower", headline="vertical_inequality", threshold=0.3, name="S80"),
+        "5_1": Measure("5_1", "higher", headline="average", threshold=0.5, name="Life exp."),
+        "10_2": Measure("10_2", "higher", headline="horizontal_inequality", threshold=3),
+        "12_8": Measure("12_8", "lower", headline="risk_factor", threshold=0.5, name="Emissions"),
+    }
+
+    @pytest.fixture
+    def result(self):
+        rows = (
+            series(
+                "1_1", {"FRA": {2010: 40_000, 2024: 42_000}, "DEU": {2010: 45_000, 2024: 45_500}}
+            )
+            + series("1_2", {"FRA": {2021: 4.5}})  # no baseline around 2010
+            + series("5_1", {"FRA": {2012: 81.8, 2023: 82.0}, "DEU": {2010: 80.0, 2023: 81.0}})
+            + feeling_safe("FRA", 60, 80, year=2010)  # gap 20
+            + feeling_safe("FRA", 70, 80, year=2025)  # gap 10
+            + series("12_8", {"FRA": {2010: 8.0, 2023: 7.0}})
+        )
+        return country_trends(make_data(rows, self.MEASURES), "FRA")
+
+    def test_every_headline_indicator_in_one_result(self, result):
+        rows = result.indicators.set_index("code")
+        assert rows["assessment"].to_dict() == {
+            "1_1": "improving",  # +2,000, threshold 1,000
+            "1_2": "insufficient data",
+            "5_1": "no clear change",  # +0.2 years, threshold 0.5
+            "10_2": "improving",  # the gender gap narrowed from 20 to 10 points
+            "12_8": "improving",  # emissions fell by 1
+        }
+        assert rows.loc["10_2", "name"] == "Gender gap in feeling safe at night"
+
+    def test_oecd_average_change_alongside(self, result):
+        rows = result.indicators.set_index("code")
+        # Life expectancy: the OECD average (FRA, DEU) rose 80.9 -> 81.5, more than France.
+        assert rows.loc["5_1", "oecd_change"] == pytest.approx(0.6)
+        assert rows.loc["5_1", "oecd_assessment"] == "improving"
+
+    def test_summary_counts(self, result):
+        assert result.summary == {
+            "current": {"improving": 2, "no clear change": 1, "insufficient data": 1},
+            "future": {"improving": 1},
+        }
