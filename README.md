@@ -29,7 +29,8 @@ The cache lives in the OS cache folder (`~/Library/Caches/wise-mcp` on macOS). S
 
 `wise_mcp.analysis` answers questions the way How's Life? 2024 does: OECD averages over members
 only, change judged against each indicator's threshold, gaps as ratios to the population average.
-Every result carries chart-ready tables and plain-language caveats.
+Every result carries chart-ready tables and plain-language caveats. The quirks in the data that
+make this necessary are listed in [docs/data-specificities.md](docs/data-specificities.md).
 
 ```python
 from wise_mcp.analysis import WellbeingData, compare_countries, country_profile, trend
