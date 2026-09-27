@@ -16,6 +16,7 @@ class TestSeries:
                 obs("FRA", "11_1", 2024, 7.0, sex="F"),
                 obs("FRA", "11_1", 2024, 7.2, age="YOUNG"),
                 obs("OECD", "11_1", 2024, 6.9),  # a published aggregate, not a country
+                obs("BRA", "11_1", 2024, 6.4),  # a partner country, not an OECD member
             ],
             {"11_1": LIFE_SATISFACTION},
         )

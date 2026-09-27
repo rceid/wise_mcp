@@ -13,7 +13,7 @@ from typing import Any, Literal
 import pandas as pd
 
 from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness
-from wise_mcp.catalog import OECD_MEMBERS, Measure
+from wise_mcp.catalog import Measure
 
 Assessment = Literal[
     "improving", "deteriorating", "no clear change", "no threshold", "insufficient data"
@@ -144,9 +144,9 @@ def _change(measure: Measure, country: pd.DataFrame, period: Period) -> dict[str
 
 
 def _oecd_change(measure: Measure, changes: pd.DataFrame) -> dict[str, Any] | None:
-    """The OECD average at baseline and at the end, over the same members (members with both
+    """The OECD average at baseline and at the end, over the same members (those with both
     values), so a change in which countries report can't masquerade as a change in well-being."""
-    both = changes[changes["ref_area"].isin(OECD_MEMBERS) & changes["end_year"].notna()]
+    both = changes[changes["end_year"].notna()]
     if both.empty:
         return None
     start, end = float(both["start_value"].mean()), float(both["end_value"].mean())

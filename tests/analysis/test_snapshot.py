@@ -15,7 +15,7 @@ def data():
             "FRA": {2023: 7.0, 2024: 7.2},
             "DEU": {2025: 7.5},
             "MEX": {2021: 8.0},  # older latest year
-            "BRA": {2024: 9.0},  # partner country, not an OECD member
+            "BRA": {2024: 9.0},  # partner country, not an OECD member: left out
             "OECD": {2024: 1.0},  # published aggregate row: never a country
         },
     )
@@ -26,22 +26,16 @@ def data():
 class TestLatest:
     def test_each_country_most_recent_value(self, data):
         table = latest(data, "11_1").set_index("ref_area")
-        assert table["time_period"].to_dict() == {
-            "BRA": 2024,
-            "DEU": 2025,
-            "FRA": 2024,
-            "MEX": 2021,
-        }
+        assert table["time_period"].to_dict() == {"DEU": 2025, "FRA": 2024, "MEX": 2021}
         assert table.loc["FRA", "obs_value"] == 7.2
 
     def test_specific_year(self, data):
         assert latest(data, "11_1", year=2023)["ref_area"].tolist() == ["FRA"]
 
-    def test_labels_and_membership(self, data):
+    def test_labels(self, data):
         table = latest(data, "11_1").set_index("ref_area")
         assert table.loc["FRA", "ref_area_label"] == "Country FRA"
         assert table.loc["FRA", "obs_status_label"] == "Estimated value"
-        assert not table.loc["BRA", "oecd_member"]
 
 
 class TestOecdAverage:
@@ -56,12 +50,18 @@ class TestOecdAverage:
 
 
 class TestCompareCountries:
-    def test_best_first_with_partners_ranked_but_not_averaged(self, data):
+    def test_best_first(self, data):
         result = compare_countries(data, "11_1")
-        assert result.table["ref_area"].tolist() == ["BRA", "MEX", "DEU", "FRA"]
-        assert result.table["rank"].tolist() == [1, 2, 3, 4]
-        assert result.table["better_than_oecd"].tolist() == [True, True, False, False]
+        assert result.table["ref_area"].tolist() == ["MEX", "DEU", "FRA"]
+        assert result.table["rank"].tolist() == [1, 2, 3]
+        assert result.table["better_than_oecd"].tolist() == [True, False, False]
         assert result.oecd_average.countries == 3
+
+    def test_partner_countries_are_left_out(self, data):
+        # Brazil has the highest value but isn't an OECD member (a choice for now).
+        assert "BRA" not in set(compare_countries(data, "11_1").table["ref_area"])
+        with pytest.raises(AnalysisError, match="not OECD member"):
+            compare_countries(data, "11_1", ["BRA"])
 
     def test_lower_is_better_reverses_the_order(self):
         rows = series("10_1", {"FRA": {2024: 1.0}, "DEU": {2024: 0.8}, "ITA": {2024: 0.5}})
@@ -100,11 +100,10 @@ class TestCompareCountries:
 
 
 class TestCaveats:
-    def test_differing_years_flags_and_partners(self, data):
+    def test_differing_years_and_flags(self, data):
         caveats = " ".join(compare_countries(data, "11_1").caveats)
         assert "from 2021 (MEX) to 2025" in caveats
         assert "FRA 2024 (estimated value)" in caveats
-        assert "BRA is not OECD member(s)" in caveats
 
     def test_uncomparable_measures_are_listed_but_not_ranked(self):
         rows = series("12_4", {"CAN": {2016: 2_000_000.0}, "FRA": {2016: 0.0}})

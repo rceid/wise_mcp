@@ -4,6 +4,10 @@ measure metadata from measures.yaml.
 Everything else in this package builds on two things defined here: `WellbeingData.series`, which
 picks out the right rows for a measure, and `goodness`, which puts any measure on a scale where
 higher always means better for well-being.
+
+The analysis covers the 38 OECD members only, as How's Life? 2024 does. The database also holds
+partner and accession countries (Brazil, Romania...) and, in future well-being, a published "OECD"
+aggregate row; `series` leaves all of them out.
 """
 
 import re
@@ -17,7 +21,6 @@ from wise_mcp.config import DATAFLOWS
 from wise_mcp.store import DataStore
 
 TOTAL = "_T"
-OECD_AGGREGATE = "OECD"  # a published aggregate row in future well-being, not a country
 
 Breakdown = Literal["sex", "age", "education"]
 # Breakdown -> (column, groups in display order)
@@ -83,14 +86,20 @@ class WellbeingData:
         unknown = [c for c in codes if c not in self.labels.get("ref_area", {})]
         if unknown:
             raise AnalysisError(f"Unknown country code(s) {unknown}. Use ISO codes such as FRA.")
+        partners = [c for c in codes if c not in OECD_MEMBERS]
+        if partners:
+            raise AnalysisError(
+                f"{', '.join(self.label('ref_area', c) for c in partners)}: not OECD member(s). "
+                "The analysis covers the 38 OECD members only, as How's Life? 2024 does."
+            )
         return codes
 
     def series(self, code: str, breakdown: Breakdown | None = None) -> pd.DataFrame:
-        """One measure's observations for every country and year: population totals, or each
+        """One measure's observations for every OECD member and year: population totals, or each
         group of a breakdown (e.g. women and men). Sorted by country and year."""
         measure = self.measure(code)
         obs = self.observations
-        rows = obs[(obs["measure"] == code) & (obs["ref_area"] != OECD_AGGREGATE)]
+        rows = obs[(obs["measure"] == code) & obs["ref_area"].isin(OECD_MEMBERS)]
 
         if breakdown is None:
             rows = rows[(rows[_GROUP_COLUMNS] == TOTAL).all(axis=1)]
@@ -117,17 +126,14 @@ class WellbeingData:
         return rows[keep].sort_values(keep[:-2]).reset_index(drop=True)
 
     def with_labels(self, table: pd.DataFrame) -> pd.DataFrame:
-        """Add country names, OECD membership and status labels next to the codes."""
-        extra = {
-            "ref_area_label": table["ref_area"].map(lambda c: self.label("ref_area", c)),
-            "oecd_member": table["ref_area"].isin(OECD_MEMBERS),
-        }
+        """Add country names and status labels next to the codes."""
+        extra = {"ref_area_label": table["ref_area"].map(lambda c: self.label("ref_area", c))}
         if "obs_status" in table:
             extra["obs_status_label"] = table["obs_status"].map(
                 lambda c: self.label("obs_status", c)
             )
         table = table.assign(**extra)
-        first = ["ref_area", "ref_area_label", "oecd_member"]
+        first = ["ref_area", "ref_area_label"]
         return table[first + [c for c in table.columns if c not in first]]
 
     def describe(self, code: str) -> dict[str, Any]:

@@ -1,5 +1,6 @@
-"""Headline scores, the overall index and country profiles on a tiny dataset: three OECD members
-(FRA, DEU, ITA) and one partner (BRA). Expected scores are worked out in the comments."""
+"""Headline scores, the Better Life 36 index and country profiles on a tiny dataset: three OECD
+members (FRA, DEU, ITA) and one partner country (BRA), which the analysis leaves out. Expected
+scores are worked out in the comments."""
 
 import pytest
 from builders import make_data, obs, series
@@ -50,15 +51,11 @@ def data():
 class TestHeadlineScores:
     def test_rescaled_from_worst_member_to_best(self, data):
         scores = headline_scores(data).set_index(["code", "ref_area"])["score"]
-        assert scores["1_1"].to_dict() == pytest.approx(
-            {"FRA": 0.5, "DEU": 1.0, "ITA": 0.0, "BRA": float("nan")}, nan_ok=True
-        )
+        assert scores["1_1"].to_dict() == pytest.approx({"FRA": 0.5, "DEU": 1.0, "ITA": 0.0})
         assert scores["1_2"].to_dict() == pytest.approx({"FRA": 1.0, "DEU": 0.5, "ITA": 0.0})
 
-    def test_partners_get_values_but_no_score_or_rank(self, data):
-        brazil = headline_scores(data).query("ref_area == 'BRA'").iloc[0]
-        assert brazil["obs_value"] == 10
-        assert brazil.isna()["score"] and brazil.isna()["rank"]
+    def test_partner_countries_are_left_out(self, data):
+        assert "BRA" not in set(headline_scores(data)["ref_area"])
 
     def test_values_from_2019_or_earlier_are_left_out(self, data):
         life_expectancy = headline_scores(data).query("code == '5_1'")
@@ -96,8 +93,11 @@ class TestWellbeingIndex:
         assert dimensions.loc[("FRA", "Income and wealth"), "score"] == pytest.approx(0.75)
         assert dimensions.loc[("FRA", "Income and wealth"), "indicators"] == 2
 
-    def test_partners_are_left_out(self, data):
-        assert "BRA" not in set(wellbeing_index(data).scores["ref_area"])
+    def test_named_better_life_36_with_separate_current_and_future_scores(self, data):
+        assert wellbeing_index(data).name == "Better Life 36: current well-being"
+        future = wellbeing_index(data, kind="future")
+        assert future.name == "Better Life 36: future well-being"
+        assert future.scores["ref_area"].tolist() == ["FRA", "ITA", "DEU"]  # emissions only
 
     def test_zero_weight_drops_a_dimension(self, data):
         # Without health: FRA 0.75/2, DEU (0.75+0.833)/2, ITA 0.5
@@ -138,13 +138,9 @@ class TestCountryProfile:
         assert profile.overall["current"] == {"score": pytest.approx(1.75 / 3), "rank": 1,
                                               "out_of": 3}  # fmt: skip
 
-    def test_partner_countries_are_compared_but_not_ranked(self, data):
-        profile = country_profile(data, "BRA")
-        assert not profile.oecd_member
-        assert profile.overall == {"current": None, "future": None}
-        income = profile.indicators.set_index("code").loc["1_1"]
-        assert income["tier"] is None and not income["better_than_oecd"]
-        assert any("Not an OECD member" in c for c in profile.caveats)
+    def test_partner_countries_are_refused(self, data):
+        with pytest.raises(AnalysisError, match="not OECD member"):
+            country_profile(data, "BRA")
 
     def test_missing_headline_indicators_are_listed(self, data):
         caveats = " ".join(country_profile(data, "ITA").caveats)

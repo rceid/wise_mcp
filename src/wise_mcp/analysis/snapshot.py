@@ -53,15 +53,14 @@ def latest(data: WellbeingData, code: str, year: int | None = None) -> pd.DataFr
 
 
 def oecd_average(table: pd.DataFrame) -> OecdAverage | None:
-    """Simple mean of the OECD members in a table from `latest` (partner countries excluded)."""
-    members = table[table["ref_area"].isin(OECD_MEMBERS)]
-    if members.empty:
+    """Simple mean over a table from `latest`, which only ever holds OECD members."""
+    if table.empty:
         return None
     return OecdAverage(
-        value=float(members["obs_value"].mean()),
-        countries=len(members),
-        first_year=int(members["time_period"].min()),
-        last_year=int(members["time_period"].max()),
+        value=float(table["obs_value"].mean()),
+        countries=len(table),
+        first_year=int(table["time_period"].min()),
+        last_year=int(table["time_period"].max()),
     )
 
 
@@ -122,13 +121,6 @@ def snapshot_caveats(data: WellbeingData, measure: Measure, table: pd.DataFrame)
         )
         more = f" and {len(flagged) - 6} more" if len(flagged) > 6 else ""
         caveats.append(f"Flagged values: {listed}{more}.")
-
-    partners = table[~table["oecd_member"]]["ref_area"].tolist()
-    if partners:
-        caveats.append(
-            f"{', '.join(partners)} {'is' if len(partners) == 1 else 'are'} not OECD "
-            "member(s): shown, but not included in the OECD average."
-        )
 
     if not measure.comparable:
         caveats.append(

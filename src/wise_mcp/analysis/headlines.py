@@ -6,6 +6,11 @@ using each country's latest value after 2019. Scores are averaged within each di
 dimension counts the same however many indicators it has, then averaged across dimensions. With
 equal weights this is the report's method; with custom weights per dimension it becomes the
 Better Life Index's "create your own index".
+
+The index is called "Better Life 36" for now: Better Life Index-style weighting over the 36 How's
+Life? headline indicators (the Better Life Index itself uses a different set of 24). Like the
+report, it keeps two separate scores: current well-being (24 indicators, 11 dimensions) and
+resources for future well-being (12 indicators, 4 capitals).
 """
 
 from dataclasses import dataclass, replace
@@ -15,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness
-from wise_mcp.catalog import FIRST_FUTURE_DIMENSION, OECD_MEMBERS, Measure
+from wise_mcp.catalog import FIRST_FUTURE_DIMENSION, Measure
 
 Kind = Literal["current", "future"]
 DIMENSIONS: dict[str, range] = {
@@ -23,6 +28,7 @@ DIMENSIONS: dict[str, range] = {
     "future": range(FIRST_FUTURE_DIMENSION, 16),
 }
 LATEST_AFTER = 2019  # "The latest year refers to the latest available year after 2019."
+INDEX_NAME = "Better Life 36"  # working name, see the module docstring
 
 # The headline for feeling safe at night is the gap between men and women, not the average. It's
 # computed as men's share minus women's (percentage points), like the gender wage gap, where a
@@ -34,7 +40,6 @@ FEELING_SAFE = "10_2"
 class Profile:
     ref_area: str
     name: str
-    oecd_member: bool
     indicators: pd.DataFrame  # one row per headline indicator the country has data for
     overall: dict[str, Any]  # overall current and future scores, with rank among members
     strengths: list[str]  # headline indicators in the top third of OECD members
@@ -44,6 +49,7 @@ class Profile:
 
 @dataclass(frozen=True)
 class Index:
+    name: str  # e.g. "Better Life 36: current well-being"
     kind: str
     weights: dict[str, float]  # dimension name -> weight
     scores: pd.DataFrame  # one row per OECD member, best first
@@ -52,8 +58,8 @@ class Index:
 
 
 def headline_scores(data: WellbeingData, kind: Kind = "current") -> pd.DataFrame:
-    """Every country's latest value after 2019 for each headline indicator, with its 0-1 score
-    and rank among OECD members. Partner countries get values but no score or rank."""
+    """Every member's latest value after 2019 for each headline indicator, with its 0-1 score
+    and rank."""
     frames = []
     for measure in _headline_measures(data, kind):
         if measure.code == FEELING_SAFE:
@@ -63,7 +69,7 @@ def headline_scores(data: WellbeingData, kind: Kind = "current") -> pd.DataFrame
         latest = series[series["time_period"] > LATEST_AFTER].groupby("ref_area").tail(1)
         if latest.empty:
             continue
-        good = goodness(measure, latest["obs_value"]).where(latest["ref_area"].isin(OECD_MEMBERS))
+        good = goodness(measure, latest["obs_value"])
         low, high = good.min(), good.max()
         frames.append(
             latest.assign(
@@ -74,7 +80,7 @@ def headline_scores(data: WellbeingData, kind: Kind = "current") -> pd.DataFrame
                 better=measure.better,
                 score=(good - low) / (high - low) if high > low else np.nan,
                 rank=good.rank(ascending=False, method="min").astype("Int64"),
-                out_of=int(good.notna().sum()),
+                out_of=len(latest),
             )
         )
     if not frames:
@@ -85,14 +91,14 @@ def headline_scores(data: WellbeingData, kind: Kind = "current") -> pd.DataFrame
 def wellbeing_index(
     data: WellbeingData, weights: dict[Any, float] | None = None, kind: Kind = "current"
 ) -> Index:
-    """Overall score per OECD member (0-1, higher is better) across the headline indicators.
+    """Better Life 36: an overall score per OECD member (0-1, higher is better) across the
+    current or future headline indicators.
 
     `weights` maps dimensions (number, e.g. 5, or name, e.g. "Health") to a weight of 0 or more;
     dimensions left out keep a weight of 1, and 0 drops a dimension. No weights reproduces the
     How's Life? 2024 method.
     """
     scores = headline_scores(data, kind)
-    scores = scores[scores["oecd_member"]]
     weight_by_number = _weights(data, weights, kind)
 
     by_dimension = (
@@ -134,6 +140,7 @@ def wellbeing_index(
     if sparse:
         caveats.append(f"Scores for {', '.join(sparse)} rest on under three-quarters of them.")
     return Index(
+        name=f"{INDEX_NAME}: {kind} well-being",
         kind=kind,
         weights={data.label("domain", f"HSL_{n}"): w for n, w in weight_by_number.items()},
         scores=overall,
@@ -148,7 +155,7 @@ def country_profile(data: WellbeingData, country: str) -> Profile:
     frames, overall = [], {}
     for kind in DIMENSIONS:
         scores = headline_scores(data, kind)  # type: ignore[arg-type]
-        averages = scores[scores["oecd_member"]].groupby("code")["obs_value"].mean()
+        averages = scores.groupby("code")["obs_value"].mean()
         mine = scores[scores["ref_area"] == ref_area]
         mine = mine.assign(kind=kind, oecd_average=mine["code"].map(averages))
         frames.append(mine)
@@ -179,15 +186,9 @@ def country_profile(data: WellbeingData, country: str) -> Profile:
             + ", ".join(data.name(code) for code in missing)
             + "."
         )
-    member = ref_area in OECD_MEMBERS
-    if not member:
-        caveats.append(
-            "Not an OECD member: compared with the OECD average, but not scored or ranked."
-        )
     return Profile(
         ref_area=ref_area,
         name=data.label("ref_area", ref_area),
-        oecd_member=member,
         indicators=indicators,
         overall=overall,
         strengths=indicators[indicators["tier"] == "top third"]["name"].tolist(),

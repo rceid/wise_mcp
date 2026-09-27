@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from wise_mcp.analysis.data import BREAKDOWNS, AnalysisError, Breakdown, WellbeingData
-from wise_mcp.catalog import OECD_MEMBERS, Measure
+from wise_mcp.catalog import Measure
 
 PARITY_TOLERANCE = 0.03
 
@@ -56,7 +56,7 @@ def group_gaps(
     population = data.series(code).set_index(["ref_area", "time_period"])["obs_value"]
     wide = wide.join(population.rename("population"), how="inner").dropna()
     latest = wide.groupby(level="ref_area").tail(1).reset_index()
-    members = latest[latest["ref_area"].isin(OECD_MEMBERS)]  # before filtering: always all
+    members = latest  # every member, before narrowing to the countries asked about
     if countries is not None:
         latest = latest[latest["ref_area"].isin(countries)]
     if latest.empty:
