@@ -74,6 +74,7 @@ class TestValidation:
             ("better: higher\n  headline: stock", "headline must be one of"),
             ("better: higher\n  threshold: -1", "threshold must be a number of at least 0"),
             ("better: higher\n  comparable: sometimes", "comparable must be true or false"),
+            ("better: higher\n  unit_label: 3", "unit_label must be text"),
         ],
     )
     def test_invalid_entries_name_the_measure(self, entry, message):
@@ -96,3 +97,9 @@ def test_oecd_has_38_members():
     # As of September 2026. Update OECD_MEMBERS when Bulgaria (or anyone else) joins.
     assert len(OECD_MEMBERS) == 38
     assert all(len(code) == 3 and code.isupper() for code in OECD_MEMBERS)
+
+
+def test_the_wrong_emissions_unit_label_is_corrected():
+    # The OECD labels greenhouse gas emissions in kg per person; the values are tonnes.
+    labelled = {m.code: m.unit_label for m in load_measures().values() if m.unit_label}
+    assert labelled == {"12_8": "Tonnes of CO2-equivalent per person"}

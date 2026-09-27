@@ -152,7 +152,7 @@ class WellbeingData:
             "name": self.name(code),
             "oecd_label": self.label("measure", code),
             "dimension": self.dimension(measure),
-            "unit": self.label("unit_measure", unit) if unit else None,
+            "unit": measure.unit_label or (self.label("unit_measure", unit) if unit else None),
             "better": measure.better,
             "target": measure.target,
             "threshold": measure.threshold,

@@ -126,3 +126,9 @@ def test_coverage_lists_countries_years_and_breakdowns():
         "last_year": 2024,
         "breakdowns": ["sex"],
     }
+
+
+def test_describe_uses_a_corrected_unit_label():
+    emissions = Measure("12_8", "lower", unit_label="Tonnes of CO2-equivalent per person")
+    data = make_data([obs("FRA", "12_8", 2023, 5.7, unit="PT")], {"12_8": emissions})
+    assert data.describe("12_8")["unit"] == "Tonnes of CO2-equivalent per person"
