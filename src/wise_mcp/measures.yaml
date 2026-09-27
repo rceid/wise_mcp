@@ -1,0 +1,523 @@
+# How's Life? measure metadata that the OECD API doesn't provide.
+#
+# Source: OECD (2024), How's Life? 2024, Reader's Guide, Tables 3-6:
+# https://www.oecd.org/en/publications/how-s-life-2024_90ba854a-en/full-report/component-3.html
+#
+# Fields (only `better` is required):
+#   name        The indicator's name in How's Life? 2024, where it has one. API labels are often
+#               longer or misleading (e.g. "Top average household disposable income quintile" is
+#               the S80/S20 ratio).
+#   better      higher | lower | target: which direction is better for well-being.
+#   target      With `better: target`, the ideal value, e.g. 0 for a gender gap.
+#   headline    Only for the 36 headline indicators, with the report's type (Tables 3 and 4).
+#               Current well-being: average | vertical_inequality | horizontal_inequality |
+#               deprivation. Future well-being: stock | flow | risk_factor | resilience_factor.
+#   threshold   Smallest change between two years that the report counts as improving or
+#               deteriorating, in the data's own unit (Tables 5 and 6). 0 means any change counts.
+#               Absent where the report uses confidence intervals or gives no threshold.
+#   unit        Default unit, only for the one measure published in two units. Breakdown rows
+#               (by sex, age or education) use a separate "_SUB" unit; totals never do.
+#   comparable  false when values can't be ranked across countries (e.g. absolute areas).
+#   note        Anything a reader could easily get wrong.
+#
+# Codes are quoted because YAML reads 1_1 unquoted as the number 11.
+# The comment after each code is the OECD API label and unit, for reference.
+
+
+# ---- 1. Income and wealth -----------------------------------------------------
+"1_1":  # Households and NPISHs net adjusted disposable income per capita [US dollars per person, PPP converted]
+  name: Household income
+  better: higher
+  headline: average
+  threshold: 1100
+"1_2":  # Top average household disposable income quintile [Factor of lowest income quintile]
+  name: S80/S20 income share ratio
+  better: lower
+  headline: vertical_inequality
+  threshold: 0.3
+  note: Average income of the top 20% divided by that of the bottom 20%, despite the API label.
+"1_3":  # Median net wealth [US dollars per household, PPP converted]
+  name: Household wealth
+  better: higher
+  headline: average
+  threshold: 11000
+"1_3_VER":  # Top wealthiest households decile [Percentage of household wealth]
+  name: Household net wealth of the top 10%
+  better: lower
+  threshold: 1
+  note: Share of all household net wealth held by the wealthiest 10% of households.
+"1_4":  # Household disposable income below the relative income poverty line [Percentage of population]
+  name: Relative income poverty
+  better: lower
+  threshold: 0.6
+"1_5":  # Difficulty making ends meet [Percentage of population aged 16 years or over]
+  name: Difficulty making ends meet
+  better: lower
+  threshold: 1.5
+"1_6":  # Equivalised liquid financial assets below three months of the annual national relative income poverty line [Percentage of population]
+  name: Financial insecurity
+  better: lower
+  threshold: 5.5
+
+# ---- 2. Work and job quality --------------------------------------------------
+"2_1":  # Employment rate [Percentage of population aged 25-64 years]
+  name: Employment rate
+  better: higher
+  headline: average
+  threshold: 1
+"2_2":  # Gender wage gap [Percentage of wages of men in the same decile]
+  name: Gender wage gap
+  better: target
+  target: 0
+  headline: horizontal_inequality
+  threshold: 1
+  note: "Negative values mean women's median wage is above men's (e.g. Luxembourg 2022); the goal is no gap in either direction."
+"2_3":  # Long-term unemployment rate [Percentage of labour force]
+  name: Long-term unemployment rate
+  better: lower
+  threshold: 0.2
+"2_4":  # Youth not in employment, education or training [Percentage of population aged 15-24 years]
+  name: NEET
+  better: lower
+  threshold: 1
+  note: Youth aged 15-24 not in employment, education or training.
+"2_5":  # Labour market insecurity [Percentage of previous earnings lost]
+  name: Labour market insecurity
+  better: lower
+  threshold: 0.3
+  note: Data end in 2016.
+"2_6":  # Job strain [Percentage of employees]
+  name: Job strain
+  better: lower
+  threshold: 3
+  note: Data end in 2015.
+"2_7":  # Long hours in paid work [Percentage of employees]
+  name: Long hours in paid work
+  better: lower
+  headline: deprivation
+  threshold: 0.6
+"2_8":  # Average annual gross earnings [US dollars, PPP converted]
+  name: Wages
+  better: higher
+  threshold: 1100
+"2_8_DEP":  # Full-time employees earning less than two-thirds of gross median earnings [Percentage of full-time employees]
+  name: Low wages
+  better: lower
+  threshold: 1.3
+"2_8_VER":  # Top earnings of full-time employees decile [Factor of lowest earnings decile]
+  name: P90/P10 ratio of wages
+  better: lower
+  threshold: 0.1
+  note: Earnings at the 90th percentile divided by the 10th, despite the API label.
+"2_9":  # Job satisfaction [0-10 scale]
+  name: Job satisfaction
+  better: higher
+  threshold: 0.2
+
+# ---- 3. Housing ---------------------------------------------------------------
+"3_1":  # Households living in overcrowded conditions [Percentage of households]
+  name: Overcrowding rate
+  better: lower
+  headline: deprivation
+  threshold: 1.5
+"3_2":  # Housing affordability [Percentage of household gross adjusted disposable income]
+  name: Housing affordability
+  better: higher
+  headline: average
+  threshold: 0.5
+  note: Share of income left after housing costs, so higher means more affordable.
+"3_3":  # Housing cost overburden [Percentage of population]
+  name: Housing cost overburden
+  better: lower
+  threshold: 1.2
+"3_4":  # Households with internet access at home [Percentage of households]
+  name: Households with high-speed Internet access
+  better: higher
+  threshold: 1
+"3_5":  # Inability to keep home adequately warm [Percentage of population aged 16 years or over]
+  name: Energy poverty
+  better: lower
+  threshold: 1.5
+
+# ---- 4. Work-life balance -----------------------------------------------------
+"4_1":  # Time off [Hours per day]
+  name: Time off
+  better: higher
+  headline: average
+  threshold: 0.3333
+  note: "Hours per day; the report's threshold is 20 minutes."
+"4_2":  # Long unpaid working hours [Percentage of population aged 15-64 years]
+  better: lower
+  note: "No change threshold: too little time series in How's Life? 2024."
+"4_3":  # Gender gap in working hours [Minutes per day]
+  name: Gender gap in total hours worked
+  better: target
+  target: 0
+  headline: horizontal_inequality
+  note: "Minutes per day. Values can be negative; the goal is no gap in either direction. No change threshold: too little time series in How's Life? 2024."
+"4_4":  # Satisfaction with time use [0-10 scale]
+  name: Satisfaction with time use
+  better: higher
+  threshold: 0.2
+"4_4_DEP":  # Satisfaction with time use score less than 5 [Percentage of population aged 16 years or over]
+  name: Low satisfaction with time use
+  better: lower
+  threshold: 0.5
+"4_4_VER":  # Top satisfaction with time use quintile [Factor of lowest time use scores quintile]
+  name: Vertical inequality in satisfaction with time use
+  better: lower
+  threshold: 0.1
+  note: Average score of the top 20% divided by that of the bottom 20%.
+
+# ---- 5. Health ----------------------------------------------------------------
+"5_1":  # Life expectancy at birth [Years]
+  name: Life expectancy at birth
+  better: higher
+  headline: average
+  threshold: 0.5
+"5_2":  # Perceived health as positive [Percentage of population aged 16 years or over]
+  name: Perceived health
+  better: higher
+  threshold: 3.5
+"5_2_DEP":  # Perceived health as negative [Percentage of population aged 16 years or over]
+  better: lower
+  note: "Not the complement of 5_2: 'fair' health counts in neither."
+"5_3":  # Deaths from suicide, alcohol, drugs [Deaths per 100 000 inhabitants]
+  name: Deaths of despair
+  better: lower
+  headline: deprivation
+  threshold: 1.9
+  note: Deaths from suicide, acute alcohol abuse and drug overdose.
+"5_4":  # Self-reported depression [Percentage of population aged 15 years or over]
+  name: Depressive symptoms
+  better: lower
+  threshold: 0.3
+  note: Data end in 2019.
+
+# ---- 6. Knowledge and skills --------------------------------------------------
+"6_1":  # Student reading skills [Points]
+  name: PISA score (reading)
+  better: higher
+  note: "No fixed change threshold: the report uses PISA's confidence intervals."
+"6_1_DEP":  # Students with low skills in reading, mathematics and science [Percentage of students]
+  name: Students with low skills
+  better: lower
+  headline: deprivation
+  threshold: 3
+  note: Students below PISA level 2 in reading, mathematics and science combined.
+"6_1_VER":  # Top reading scores decile [Factor of lowest scores decile]
+  better: lower
+  note: Score of the top 10% divided by that of the bottom 10%, despite the API label.
+"6_2":  # Student mathematics skills [Points]
+  name: PISA score (maths)
+  better: higher
+  headline: average
+  note: "No fixed change threshold: the report uses PISA's confidence intervals."
+"6_2_VER":  # Top mathematics scores decile [Factor of lowest scores decile]
+  better: lower
+  note: Score of the top 10% divided by that of the bottom 10%, despite the API label.
+"6_3":  # Student science skills [Points]
+  name: PISA score (science)
+  better: higher
+  note: "No fixed change threshold: the report uses PISA's confidence intervals."
+"6_3_VER":  # Top science scores decile [Factor of lowest scores decile]
+  better: lower
+  note: Score of the top 10% divided by that of the bottom 10%, despite the API label.
+"6_4":  # Adult numeracy skills [Points]
+  better: higher
+  note: "No change threshold: too little time series in How's Life? 2024."
+"6_4_DEP":  # Adults with low numeracy skills [Percentage of students]
+  better: lower
+  note: "No change threshold: too little time series in How's Life? 2024."
+"6_4_VER":  # Top adult numeracy scores decile [Factor of lowest scores decile]
+  better: lower
+  note: Score of the top 10% divided by that of the bottom 10%, despite the API label.
+"6_5":  # Adult literacy skills [Points]
+  better: higher
+  note: "No change threshold: too little time series in How's Life? 2024."
+"6_5_VER":  # Top adult literacy scores decile [Factor of lowest scores decile]
+  better: lower
+  note: Score of the top 10% divided by that of the bottom 10%, despite the API label.
+
+# ---- 7. Social connections ----------------------------------------------------
+"7_1":  # Social support [Percentage of population aged 15 years or over]
+  name: Social support
+  better: higher
+  threshold: 3
+"7_1_DEP":  # Lack of social support [Percentage of population aged 15 years or over]
+  name: Lack of social support
+  better: lower
+  headline: deprivation
+  note: Not the exact complement of 7_1, so it has no published threshold of its own.
+"7_2":  # Time spent in social interactions [Hours per week]
+  name: Social interactions
+  better: higher
+  headline: average
+  threshold: 0.3333
+  note: "Hours per week; the report's threshold is 20 minutes."
+"7_3":  # Satisfaction with personal relationships [0-10 scale]
+  name: Satisfaction with personal relationships
+  better: higher
+  threshold: 0.2
+"7_3_DEP":  # Satisfaction with personal relationships score less than 5 [Percentage of population aged 16 years or over]
+  name: Low satisfaction with personal relationships
+  better: lower
+  threshold: 0.5
+"7_3_VER":  # Top personal relationship satisfaction scores quintile [Factor of lowest personal relationship satisfaction scores quintile]
+  better: lower
+  note: Average score of the top 20% divided by that of the bottom 20%. No published threshold.
+"7_4":  # Feeling lonely [Percentage of population aged 16 years or over]
+  name: Loneliness
+  better: lower
+  threshold: 1.5
+
+# ---- 8. Civic engagement ------------------------------------------------------
+"8_1":  # Having a say in government [Percentage of population aged 16-65 years]
+  name: Having a say in government
+  better: higher
+  threshold: 3
+"8_1_DEP":  # Not having a say in government [Percentage of population aged 16-65 years]
+  name: Having no say in government
+  better: lower
+  headline: deprivation
+  note: Not the complement of 8_1 (middle scores count in neither), so it has no published threshold of its own.
+"8_2":  # Voter turnout [Percentage of votes]
+  name: Voter turnout
+  better: higher
+  headline: average
+  threshold: 3
+
+# ---- 9. Environmental quality -------------------------------------------------
+"9_1":  # Access to green space [Percentage of urban population]
+  better: higher
+  note: "Not in the How's Life? 2024 dashboard; data end in 2018."
+"9_2":  # Exposed to air pollution [Percentage of population]
+  name: Air pollution
+  better: lower
+  headline: deprivation
+  threshold: 1.2
+  note: Share of people exposed to PM2.5 above 5 micrograms/m3.
+"9_3":  # Exposure to extreme temperature [Percentage of population]
+  name: Exposure to extreme temperatures
+  better: lower
+  headline: deprivation
+  threshold: 2
+
+# ---- 10. Safety ----------------------------------------------------------------
+"10_1":  # Homicides [Deaths per 100 000 inhabitants]
+  name: Homicides
+  better: lower
+  headline: average
+  threshold: 0.3
+"10_2":  # Feeling safe at night [Percentage of population aged 15 years or over]
+  name: Feeling safe at night
+  better: higher
+  headline: horizontal_inequality
+  threshold: 3
+  note: "The headline indicator is the gap between women and men in this measure, not its average.
+    The goal for that gap is zero."
+"10_2_DEP":  # Not feeling safe at night [Percentage of population aged 15 years or over]
+  better: lower
+  note: Not the exact complement of 10_2. No published threshold.
+"10_3":  # Road deaths [Deaths per 100 000 inhabitants]
+  name: Road deaths
+  better: lower
+  threshold: 0.5
+
+# ---- 11. Subjective well-being -------------------------------------------------
+"11_1":  # Life satisfaction [0-10 scale]
+  name: Life satisfaction
+  better: higher
+  headline: average
+  threshold: 0.2
+"11_1_DEP":  # Life satisfaction score less than 5 [Percentage of population aged 16 years or over]
+  name: Low life satisfaction
+  better: lower
+  threshold: 0.5
+"11_1_VER":  # Top life satisfaction scores quintile [Factor of lowest life satisfaction scores quintile]
+  name: Vertical inequality in life satisfaction
+  better: lower
+  threshold: 0.1
+  note: Average score of the top 20% divided by that of the bottom 20%.
+"11_2":  # Negative affect balance [Percentage of population aged 15 years or over]
+  name: Negative affect balance
+  better: lower
+  headline: deprivation
+  threshold: 3
+"11_3":  # Feelings of physical pain [Percentage of population aged 15 years or over]
+  name: Pain
+  better: lower
+  threshold: 3
+
+# ---- 12. Natural capital -------------------------------------------------------
+"12_1":  # Natural and semi-natural land cover [Percentage of land area]
+  better: higher
+"12_2":  # Loss of natural and semi-natural land cover [Percentage of natural and semi-natural land in base period]
+  name: Loss of natural and semi-natural land cover
+  better: lower
+  threshold: 0
+"12_3":  # Gain of natural and semi-natural land cover [Percentage of natural and semi-natural land in base period]
+  name: Gain of natural and semi-natural land cover
+  better: higher
+  threshold: 0
+"12_4":  # Intact forest landscapes [Square kilometres]
+  name: Intact forest landscapes
+  better: higher
+  threshold: 0
+  comparable: false
+  note: Absolute area in km2, so large countries rank first by construction.
+"12_5":  # Protected terrestrial areas [Percentage of land area]
+  name: Protected areas (terrestrial)
+  better: higher
+  threshold: 0
+"12_6":  # Protected marine areas [Percentage of exclusive economic zone]
+  name: Protected areas (marine)
+  better: higher
+  threshold: 0
+"12_7":  # Red list index of threatened species [Index]
+  name: Biodiversity (Red List Index of threatened species)
+  better: higher
+  headline: stock
+  threshold: 0
+  note: "1 means all species are of least concern, 0 means all are extinct."
+"12_8":  # Greenhouse gas emissions per capita [Kilogrammes of CO2-equivalent per person]
+  name: Greenhouse gas emissions per capita
+  better: lower
+  headline: risk_factor
+  threshold: 0.5
+  note: Values are thousands of kg (tonnes) per person, although the API unit says kg.
+"12_9":  # Carbon footprint [Tonnes of CO2 per person / Tonnes of CO2-equivalent per person]
+  name: Carbon footprint
+  better: lower
+  threshold: 0.5
+  unit: T_CO2E_PS
+  note: "Published in CO2-equivalent and CO2-only. CO2-equivalent is the default for its wider coverage, although How's Life? 2024 defines the indicator as CO2 only."
+"12_10":  # Renewable energy [Percentage of energy supply]
+  name: Renewable energy supply
+  better: higher
+  headline: resilience_factor
+  threshold: 2.5
+"12_11":  # Soil nutrient balance [Kilogramme]
+  name: Soil nutrient balance
+  better: target
+  target: 0
+  threshold: 5.5
+  note: "Nitrogen surplus per hectare. A surplus pollutes water and a deficit (negative values, only
+    Romania and South Africa) drains nutrients from the soil, so the goal is balance. For OECD
+    members, all in surplus, this ranks exactly as 'lower is better' would."
+"12_12":  # Water stress (internal resources) [Percentage of internal renewable resources]
+  name: Water stress (internal)
+  better: lower
+  threshold: 1.5
+"12_13":  # Water stress (total renewable resources) [Percentage of available renewable water resources]
+  name: Water stress (total)
+  better: lower
+  threshold: 1.5
+"12_14":  # Material footprint per capita [Tonnes per person]
+  name: Material footprint
+  better: lower
+  threshold: 2
+"12_15":  # Recycling rate [Percentage of treated waste]
+  name: Recycling rate
+  better: higher
+  threshold: 2
+
+# ---- 13. Human capital ---------------------------------------------------------
+"13_1":  # Educational attainment among young adults [Percentage of population aged 25-34 years]
+  name: Educational attainment of young adults
+  better: higher
+  headline: stock
+  threshold: 1
+"13_2":  # Labour underutilisation rate [Percentage of labour force]
+  name: Labour underutilisation rate
+  better: lower
+  headline: risk_factor
+  threshold: 1
+"13_3":  # Premature mortality [Years per 100 000 persons]
+  name: Premature mortality
+  better: lower
+  headline: flow
+  threshold: 350
+"13_4":  # Smoking prevalence [Percentage of population aged 15 years or over]
+  name: Smoking prevalence
+  better: lower
+  threshold: 1
+"13_5":  # Obesity prevalence [Percentage of population aged 15 years or over]
+  name: Obesity prevalence
+  better: lower
+  threshold: 1
+
+# ---- 14. Social capital --------------------------------------------------------
+"14_1":  # Trust in others [0-10 scale]
+  name: Trust in others
+  better: higher
+  headline: stock
+  threshold: 0.5
+"14_2":  # Trust in the police [0-10 scale]
+  name: Trust in the police
+  better: higher
+  note: "No change threshold: too little time series in How's Life? 2024."
+"14_3":  # Trust in government [Percentage of population aged 15 years or over]
+  name: Trust in national government
+  better: higher
+  headline: stock
+  threshold: 3
+"14_4":  # Government stakeholder engagement [0-4 scale]
+  name: Government stakeholder engagement
+  better: higher
+  threshold: 0
+"14_5":  # Gender parity in politics [Percentage of members of parliament]
+  name: Gender parity in politics
+  better: target
+  target: 50
+  headline: resilience_factor
+  threshold: 2
+  note: Share of women in parliament; parity is 50% (Mexico is slightly above).
+"14_6":  # Corruption [0-100 scale]
+  name: Corruption
+  better: higher
+  note: "Corruption Perceptions Index, where 100 is very clean, so higher means less corruption. No fixed change threshold: the report uses Transparency International's confidence intervals."
+"14_7":  # Volunteering through organisations [Percentage of population aged 15 years or over]
+  name: Volunteering
+  better: higher
+  threshold: 3
+
+# ---- 15. Economic capital ------------------------------------------------------
+"15_1":  # Produced fixed assets [US dollars per person, PPP converted]
+  name: Produced fixed assets
+  better: higher
+  headline: stock
+  threshold: 7700
+"15_2":  # Intellectual property assets [US dollars per person, PPP converted]
+  name: Intellectual property assets
+  better: higher
+  threshold: 600
+"15_3":  # Gross fixed capital formation [Percentage change]
+  name: Gross fixed capital formation
+  better: higher
+  threshold: 1
+  note: Annual growth rate, so volatile.
+"15_4":  # Investment in R&D [Percentage of GDP]
+  name: Investment in R&D
+  better: higher
+  threshold: 0.2
+"15_5":  # Total economy net financial worth [US dollars per person, PPP converted]
+  name: Financial net worth of the total economy
+  better: higher
+  threshold: 5300
+  note: Negative values mean net liabilities to the rest of the world.
+"15_6":  # Households and NPISHs debt [Percentage of household and NPISH net disposable income]
+  name: Household debt
+  better: lower
+  headline: risk_factor
+  threshold: 10
+"15_7":  # General government net financial worth [Percentage of GDP]
+  name: Financial net worth of government
+  better: higher
+  headline: risk_factor
+  threshold: 3
+  note: Negative values mean net liabilities.
+"15_8":  # Monetary financial institutions leverage [Factor of equity liabilities]
+  name: Leverage ratio of monetary financial institutions
+  better: lower
+  threshold: 3
