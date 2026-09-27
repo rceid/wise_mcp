@@ -147,6 +147,13 @@ Each item gives **what**, a real **example**, and **what `wise_mcp` does**.
   2018, depressive symptoms in 2019.
 - **`wise_mcp`:** comparisons warn when a measure's newest data are 5+ years older than the rest.
 
+### Some series start too late for a trend
+
+- **Example:** France's S80/S20 income ratio is only in the database for 2020-2023, although the
+  indicator goes back to 2004 for other countries. With no value around 2010 there is no baseline,
+  so France's income-inequality trend can't be assessed.
+- **`wise_mcp`:** trends mark such countries "insufficient data" and list them in the caveats.
+
 ### Some values can't be compared across countries
 
 - **Example:** intact forest landscapes are in absolute km², so large countries rank first.
@@ -182,6 +189,22 @@ cited next to each rule.
 - **Four of the six How's Life? datasets repeat a fifth:** the by-age, by-sex, by-education and
   inequality datasets are exact subsets of "current well-being".
 - **The report website blocks scripted downloads (HTTP 403),** so the method has to be read by hand.
+
+## MCP notes: lessons from testing with Claude
+
+What asking Claude real questions through the server showed about designing the tools, as opposed
+to the data itself.
+
+### Tools should match the questions people ask
+
+- **What:** asked for "the trends in well-being in France", Claude made about 21 tool calls: a
+  country profile, a `find_measures` lookup per indicator (the profile listed indicator names but not
+  their codes), then `trend` ten times.
+- **Idea:** a `country_trends(country, since)` tool that classes all 36 headline indicators for one
+  country as improving, deteriorating or no clear change, in a single call. That is exactly what How's
+  Life? 2024 Chapter 4 does for each country, so the tool would follow the report's own way of
+  looking at a country. "What are the trends in France?" would then need 1 call instead of about 20.
+- **Status:** not built yet.
 
 ## Choices `wise_mcp` makes where the OECD doesn't specify
 
