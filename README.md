@@ -37,8 +37,8 @@ from wise_mcp.analysis import WellbeingData, compare_countries, country_profile,
 from wise_mcp.store import DataStore
 
 data = WellbeingData.from_store(DataStore())
-data.find_measures("life satisfaction")        # look up measure codes
-result = compare_countries(data, "11_1")       # ranking, OECD average, caveats
-trend(data, "11_1", ["FRA", "CAN"]).changes    # improving / deteriorating since ~2010
-country_profile(data, "MEX").weaknesses        # headline indicators in the bottom third
+data.find_measures("life satisfaction")  # look up measure codes
+result = compare_countries(data, "11_1")  # ranking, OECD average, caveats
+trend(data, "11_1", ["FRA", "CAN"]).changes  # improving / deteriorating since ~2010
+country_profile(data, "MEX").weaknesses  # headline indicators in the bottom third
 ```
