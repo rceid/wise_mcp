@@ -1,24 +1,22 @@
 """Checks against the real OECD API, to catch changes on their side.
 
-Skipped by default. Run with `uv run pytest -m live`; costs 2 of the ~60 requests/hour.
+Skipped by default. Run with `uv run pytest -m live`; costs 2 of the ~60 requests/hour (the
+download is shared with the other live tests, see conftest.py).
 """
 
 import pandas as pd
 import pytest
 
-from wise_mcp.catalog import load_measures
-from wise_mcp.config import AGENCY_ID, DATAFLOWS
-from wise_mcp.sdmx import SdmxClient, parse_labelled_csv
+from wise_mcp.catalog import OECD_MEMBERS, load_measures
+from wise_mcp.config import DATAFLOWS
+from wise_mcp.sdmx import parse_labelled_csv
 
 pytestmark = pytest.mark.live
 
 
 @pytest.fixture(scope="module")
-def raw_csv() -> dict[str, str]:
-    with SdmxClient() as client:
-        return {
-            name: client.fetch_dataflow_csv(AGENCY_ID, flow) for name, flow in DATAFLOWS.items()
-        }
+def raw_csv(live_raw_csv) -> dict[str, str]:
+    return live_raw_csv
 
 
 def test_current_wellbeing_has_all_11_dimensions(raw_csv):
@@ -64,3 +62,8 @@ def test_measures_published_in_several_units_have_a_default(observations):
     for code, published in units.items():
         if len(published) > 1:
             assert measures[code].unit in published, f"{code} needs a unit: one of {published}"
+
+
+def test_every_oecd_member_is_in_the_data(observations):
+    # Catches a typo in OECD_MEMBERS, which would silently shrink every OECD average.
+    assert OECD_MEMBERS <= set(observations["ref_area"])

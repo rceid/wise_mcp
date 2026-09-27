@@ -24,3 +24,20 @@ uv run wise-mcp-cache refresh    # download everything again, e.g. before a demo
 
 The cache lives in the OS cache folder (`~/Library/Caches/wise-mcp` on macOS). Set
 `WISE_MCP_CACHE_DIR` to use another location.
+
+### Analysis
+
+`wise_mcp.analysis` answers questions the way How's Life? 2024 does: OECD averages over members
+only, change judged against each indicator's threshold, gaps as ratios to the population average.
+Every result carries chart-ready tables and plain-language caveats.
+
+```python
+from wise_mcp.analysis import WellbeingData, compare_countries, country_profile, trend
+from wise_mcp.store import DataStore
+
+data = WellbeingData.from_store(DataStore())
+data.find_measures("life satisfaction")        # look up measure codes
+result = compare_countries(data, "11_1")       # ranking, OECD average, caveats
+trend(data, "11_1", ["FRA", "CAN"]).changes    # improving / deteriorating since ~2010
+country_profile(data, "MEX").weaknesses        # headline indicators in the bottom third
+```
