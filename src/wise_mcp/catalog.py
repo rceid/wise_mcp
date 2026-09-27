@@ -22,6 +22,18 @@ FUTURE_HEADLINE_TYPES = {"stock", "flow", "risk_factor", "resilience_factor"}
 
 _CODE = re.compile(r"^\d{1,2}_\d{1,2}(_VER|_DEP)?$")
 
+# The 38 OECD members as of September 2026. OECD averages cover members only, so partner and
+# accession countries in the data (Brazil, South Africa, Argentina...) are shown but not averaged.
+# Bulgaria may become the 39th member around the end of 2026.
+OECD_MEMBERS = frozenset(
+    {
+        "AUS", "AUT", "BEL", "CAN", "CHE", "CHL", "COL", "CRI", "CZE", "DEU",
+        "DNK", "ESP", "EST", "FIN", "FRA", "GBR", "GRC", "HUN", "IRL", "ISL",
+        "ISR", "ITA", "JPN", "KOR", "LTU", "LUX", "LVA", "MEX", "NLD", "NOR",
+        "NZL", "POL", "PRT", "SVK", "SVN", "SWE", "TUR", "USA",
+    }
+)  # fmt: skip
+
 
 @dataclass(frozen=True)
 class Measure:

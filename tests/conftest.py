@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from wise_mcp.config import DATAFLOWS
-from wise_mcp.sdmx import DataflowDownload, parse_labelled_csv
+from wise_mcp.analysis import WellbeingData
+from wise_mcp.config import AGENCY_ID, DATAFLOWS
+from wise_mcp.sdmx import DataflowDownload, SdmxClient, parse_labelled_csv
 from wise_mcp.store import DataStore
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -65,3 +66,34 @@ def clock() -> FakeClock:
 @pytest.fixture
 def store(tmp_path: Path, fetcher: FakeFetcher, clock: FakeClock) -> DataStore:
     return DataStore(directory=tmp_path / "cache", fetcher=fetcher, clock=clock)
+
+
+# Live fixtures: only tests marked `live` use them, so ordinary runs never touch the API. The
+# download happens once per session (2 requests) however many live test files use it.
+
+
+@pytest.fixture(scope="session")
+def live_raw_csv() -> dict[str, str]:
+    with SdmxClient() as client:
+        return {
+            name: client.fetch_dataflow_csv(AGENCY_ID, flow) for name, flow in DATAFLOWS.items()
+        }
+
+
+class _Replay:
+    """Serves already-downloaded CSV to a DataStore, so the live data goes through the real
+    parse-and-cache path without downloading it again."""
+
+    def __init__(self, raw_csv: dict[str, str]) -> None:
+        self.raw_csv = raw_csv
+
+    def fetch_dataflow(self, agency_id: str, dataflow_id: str) -> DataflowDownload:
+        name = next(name for name, flow in DATAFLOWS.items() if flow == dataflow_id)
+        return parse_labelled_csv(self.raw_csv[name])
+
+
+@pytest.fixture(scope="session")
+def live_data(live_raw_csv, tmp_path_factory) -> WellbeingData:
+    store = DataStore(tmp_path_factory.mktemp("live-cache"), fetcher=_Replay(live_raw_csv))
+    store.refresh()
+    return WellbeingData.from_store(store)

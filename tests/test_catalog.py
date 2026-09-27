@@ -2,7 +2,7 @@ from collections import Counter
 
 import pytest
 
-from wise_mcp.catalog import load_measures, parse_measures
+from wise_mcp.catalog import OECD_MEMBERS, load_measures, parse_measures
 
 
 @pytest.fixture(scope="module")
@@ -90,3 +90,9 @@ class TestValidation:
     def test_malformed_code_is_rejected(self):
         with pytest.raises(ValueError, match="not a How's Life\\? measure code"):
             parse_measures('"life_satisfaction":\n  better: higher\n')
+
+
+def test_oecd_has_38_members():
+    # As of September 2026. Update OECD_MEMBERS when Bulgaria (or anyone else) joins.
+    assert len(OECD_MEMBERS) == 38
+    assert all(len(code) == 3 and code.isupper() for code in OECD_MEMBERS)
