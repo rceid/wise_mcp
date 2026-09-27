@@ -230,7 +230,8 @@ def _weights(data: WellbeingData, weights: dict[Any, float] | None, kind: Kind) 
     by_name = {data.label("domain", f"HSL_{n}").lower(): n for n in numbers}
     result = dict.fromkeys(numbers, 1.0)
     for key, weight in (weights or {}).items():
-        number = key if isinstance(key, int) else by_name.get(str(key).lower())
+        # JSON object keys are always strings, so "5" means dimension 5 as well.
+        number = int(key) if str(key).isdigit() else by_name.get(str(key).lower())
         if number not in result:
             raise AnalysisError(
                 f"Unknown {kind} well-being dimension {key!r}. Use one of: "

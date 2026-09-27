@@ -80,12 +80,19 @@ class WellbeingData:
         return self.label("domain", f"HSL_{measure.dimension}")
 
     def check_countries(self, countries: list[str] | None) -> list[str] | None:
+        """ISO codes for countries given as codes ("FRA") or English names ("France")."""
         if countries is None:
             return None
-        codes = [c.upper() for c in countries]
-        unknown = [c for c in codes if c not in self.labels.get("ref_area", {})]
+        areas = self.labels.get("ref_area", {})
+        by_name = {name.lower(): code for code, name in areas.items()}
+        codes, unknown = [], []
+        for country in countries:
+            code = country.upper() if country.upper() in areas else by_name.get(country.lower())
+            (codes if code else unknown).append(code or country)
         if unknown:
-            raise AnalysisError(f"Unknown country code(s) {unknown}. Use ISO codes such as FRA.")
+            raise AnalysisError(
+                f"Unknown country {unknown}. Use ISO codes such as FRA, or English names."
+            )
         partners = [c for c in codes if c not in OECD_MEMBERS]
         if partners:
             raise AnalysisError(
@@ -151,6 +158,23 @@ class WellbeingData:
             "threshold": measure.threshold,
             "headline": measure.headline,
             "note": measure.note,
+        }
+
+    def coverage(self, code: str) -> dict[str, Any]:
+        """Which OECD members, years and breakdowns a measure has data for."""
+        totals = self.series(code)
+        breakdowns = []
+        for breakdown in BREAKDOWNS:
+            try:
+                self.series(code, breakdown)  # type: ignore[arg-type]
+                breakdowns.append(breakdown)
+            except AnalysisError:
+                pass
+        return {
+            "countries": int(totals["ref_area"].nunique()),
+            "first_year": int(totals["time_period"].min()) if not totals.empty else None,
+            "last_year": int(totals["time_period"].max()) if not totals.empty else None,
+            "breakdowns": breakdowns,
         }
 
     def find_measures(self, query: str, limit: int = 10) -> pd.DataFrame:

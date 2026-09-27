@@ -108,8 +108,10 @@ class TestWellbeingIndex:
         # Safety x3: FRA 1.75/5, DEU (0.75+2.5)/5, ITA 3/4
         by_number = wellbeing_index(data, {10: 3}).scores
         by_name = wellbeing_index(data, {"safety": 3}).scores
+        by_text = wellbeing_index(data, {"10": 3}).scores  # JSON keys arrive as strings
         assert by_number["ref_area"].tolist() == ["ITA", "DEU", "FRA"]
         assert by_name["score"].tolist() == pytest.approx(by_number["score"].tolist())
+        assert by_text["score"].tolist() == pytest.approx(by_number["score"].tolist())
 
     @pytest.mark.parametrize(
         ("weights", "message"),
