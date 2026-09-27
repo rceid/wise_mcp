@@ -124,7 +124,9 @@ Each item gives **what**, a real **example**, and **what `wise_mcp` does**.
 - **What:** greenhouse gas emissions per capita are labelled "kg CO₂e per person", but the values
   (2.6 to 28) are thousands of kg, i.e. tonnes. The report confirms "kilograms, thousands".
 - **Example:** taking the label at face value makes the change threshold 1,000 times too big.
-- **`wise_mcp`:** the threshold is stored in the data's real unit, with a note.
+- **`wise_mcp`:** the threshold is stored in the data's real unit, and a `unit_label` in
+  `measures.yaml` replaces the OECD's label, so every tool says "tonnes of CO₂-equivalent per
+  person".
 
 ### One measure code can hold several series
 
@@ -202,9 +204,10 @@ to the data itself.
   their codes), then `trend` ten times.
 - **Idea:** a `country_trends(country, since)` tool that classes all 36 headline indicators for one
   country as improving, deteriorating or no clear change, in a single call. That is exactly what How's
-  Life? 2024 Chapter 4 does for each country, so the tool would follow the report's own way of
-  looking at a country. "What are the trends in France?" would then need 1 call instead of about 20.
-- **Status:** not built yet.
+  Life? 2024 Chapter 4 does for each country, so the tool follows the report's own way of looking
+  at a country. "What are the trends in France?" then needs 1 call instead of about 20.
+- **Status:** built. The profile table now also shows each indicator's code, and the server's
+  instructions tell Claude to prefer `country_trends` for a country's overall picture.
 
 ## Choices `wise_mcp` makes where the OECD doesn't specify
 

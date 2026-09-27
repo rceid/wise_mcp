@@ -29,6 +29,7 @@ widest?"*. The **Country well-being briefing** prompt writes a How's Life?-style
 | `trend` | Improving, deteriorating or no clear change since ~2010 or since 2019 |
 | `group_gaps` | Women vs men, age groups or education levels |
 | `country_profile` | A country's 36 headline indicators: strengths, weaknesses, rank |
+| `country_trends` | All 36 headline indicators for one country: improving or not, in one call |
 | `better_life_36` | Overall well-being score, with optional weights per dimension |
 
 All tools are read-only and answer from the local cache, so they never spend the OECD API's
