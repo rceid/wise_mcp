@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness
+from wise_mcp.analysis.trends import Period, changes_by_country, no_change, oecd_change
 from wise_mcp.catalog import FIRST_FUTURE_DIMENSION, Measure
 
 Kind = Literal["current", "future"]
@@ -48,6 +49,16 @@ class Profile:
 
 
 @dataclass(frozen=True)
+class CountryTrends:
+    ref_area: str
+    name: str
+    period: str  # e.g. "since around 2010"
+    indicators: pd.DataFrame  # one row per headline indicator: the country's change and the OECD's
+    summary: dict[str, dict[str, int]]  # "current"/"future" -> assessment -> count
+    caveats: list[str]
+
+
+@dataclass(frozen=True)
 class Index:
     name: str  # e.g. "Better Life 36: current well-being"
     kind: str
@@ -61,11 +72,8 @@ def headline_scores(data: WellbeingData, kind: Kind = "current") -> pd.DataFrame
     """Every member's latest value after 2019 for each headline indicator, with its 0-1 score
     and rank."""
     frames = []
-    for measure in _headline_measures(data, kind):
-        if measure.code == FEELING_SAFE:
-            measure, series = _feeling_safe_gap(data)
-        else:
-            series = data.series(measure.code)
+    for headline in _headline_measures(data, kind):
+        measure, series = _headline_series(data, headline)
         latest = series[series["time_period"] > LATEST_AFTER].groupby("ref_area").tail(1)
         if latest.empty:
             continue
@@ -197,6 +205,78 @@ def country_profile(data: WellbeingData, country: str) -> Profile:
     )
 
 
+def country_trends(data: WellbeingData, country: str, since: int | str = 2010) -> CountryTrends:
+    """Is life getting better in one country? Every headline indicator classed as improving,
+    deteriorating or no clear change since a baseline, next to the OECD average's own change: the
+    country view of How's Life? 2024, Chapter 4, in one call."""
+    (ref_area,) = data.check_countries([country])
+    period = Period.since(since)
+    rows = []
+    for kind in DIMENSIONS:
+        for headline in _headline_measures(data, kind):  # type: ignore[arg-type]
+            measure, series = _headline_series(data, headline)
+            changes = changes_by_country(measure, series, period)
+            oecd = oecd_change(measure, changes)
+            mine = changes[changes["ref_area"] == ref_area].drop(columns="ref_area")
+            own = mine.iloc[0].to_dict() if not mine.empty else no_change()
+            rows.append(
+                {
+                    "kind": kind,
+                    "dimension": data.dimension(measure),
+                    "code": measure.code,
+                    "name": measure.name or data.name(measure.code),
+                    "threshold": measure.threshold,
+                    **own,
+                    "oecd_change": oecd["change"] if oecd else pd.NA,
+                    "oecd_assessment": oecd["assessment"] if oecd else "insufficient data",
+                }
+            )
+    indicators = pd.DataFrame(rows).astype(
+        {"start_year": "Int64", "end_year": "Int64", "start_value": "Float64",
+         "end_value": "Float64", "change": "Float64", "oecd_change": "Float64",
+         "series_break": bool}
+    )  # fmt: skip
+    summary = {
+        kind: group["assessment"].value_counts().to_dict()
+        for kind, group in indicators.groupby("kind", sort=False)
+    }
+
+    caveats = []
+    breaks = indicators[indicators["series_break"]]["name"].tolist()
+    if breaks:
+        caveats.append(
+            f"Series breaks during the period for: {', '.join(breaks)}. Part of these changes may "
+            "reflect a change of method rather than real change."
+        )
+    unclassed = indicators[indicators["assessment"] == "no threshold"]["name"].tolist()
+    if unclassed:
+        caveats.append(
+            f"How's Life? publishes no fixed threshold for {', '.join(unclassed)}, so their "
+            "changes are shown but not classed."
+        )
+    caveats.append(
+        "Feeling safe at night is assessed as the gender gap (men minus women), where "
+        "improving means the gap narrowed. The OECD average compares the same members at both "
+        "ends of the period."
+    )
+    return CountryTrends(
+        ref_area=ref_area,
+        name=data.label("ref_area", ref_area),
+        period=period.label,
+        indicators=indicators,
+        summary=summary,
+        caveats=caveats,
+    )
+
+
+def _headline_series(data: WellbeingData, headline: Measure) -> tuple[Measure, pd.DataFrame]:
+    """The measure and series behind a headline indicator: the measure itself, except feeling
+    safe at night, whose headline is the gender gap."""
+    if headline.code == FEELING_SAFE:
+        return _feeling_safe_gap(data)
+    return headline, data.series(headline.code)
+
+
 def _headline_measures(data: WellbeingData, kind: Kind) -> list[Measure]:
     return [m for m in data.measures.values() if m.headline and m.dimension in DIMENSIONS[kind]]
 
@@ -230,7 +310,8 @@ def _weights(data: WellbeingData, weights: dict[Any, float] | None, kind: Kind) 
     by_name = {data.label("domain", f"HSL_{n}").lower(): n for n in numbers}
     result = dict.fromkeys(numbers, 1.0)
     for key, weight in (weights or {}).items():
-        number = key if isinstance(key, int) else by_name.get(str(key).lower())
+        # JSON object keys are always strings, so "5" means dimension 5 as well.
+        number = int(key) if str(key).isdigit() else by_name.get(str(key).lower())
         if number not in result:
             raise AnalysisError(
                 f"Unknown {kind} well-being dimension {key!r}. Use one of: "

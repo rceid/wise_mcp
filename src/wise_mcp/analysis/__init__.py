@@ -7,9 +7,11 @@ plain-language caveats, so the MCP tools and charts built on top never recompute
 from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness
 from wise_mcp.analysis.gaps import GroupGaps, group_gaps
 from wise_mcp.analysis.headlines import (
+    CountryTrends,
     Index,
     Profile,
     country_profile,
+    country_trends,
     headline_scores,
     wellbeing_index,
 )
@@ -25,6 +27,7 @@ from wise_mcp.analysis.trends import Trend, assess, trend
 __all__ = [
     "AnalysisError",
     "Comparison",
+    "CountryTrends",
     "GroupGaps",
     "Index",
     "OecdAverage",
@@ -34,6 +37,7 @@ __all__ = [
     "assess",
     "compare_countries",
     "country_profile",
+    "country_trends",
     "goodness",
     "group_gaps",
     "headline_scores",

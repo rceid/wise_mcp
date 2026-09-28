@@ -17,6 +17,7 @@
 #               Absent where the report uses confidence intervals or gives no threshold.
 #   unit        Default unit, only for the one measure published in two units. Breakdown rows
 #               (by sex, age or education) use a separate "_SUB" unit; totals never do.
+#   unit_label  How to describe the unit, where the OECD's own label is wrong.
 #   comparable  false when values can't be ranked across countries (e.g. absolute areas).
 #   note        Anything a reader could easily get wrong.
 #
@@ -385,7 +386,8 @@
   better: lower
   headline: risk_factor
   threshold: 0.5
-  note: Values are thousands of kg (tonnes) per person, although the API unit says kg.
+  unit_label: Tonnes of CO2-equivalent per person
+  note: The OECD labels the unit kg per person, but the values are thousands of kg (tonnes).
 "12_9":  # Carbon footprint [Tonnes of CO2 per person / Tonnes of CO2-equivalent per person]
   name: Carbon footprint
   better: lower

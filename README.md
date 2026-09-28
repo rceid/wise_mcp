@@ -1,6 +1,40 @@
 # wise_mcp
 A prototype MCP server to query and interact with the OECD's `How's Life?` well-being database directly
 
+## Use it in Claude Desktop
+
+Add this to `~/Library/Application Support/Claude/claude_desktop_config.json`, then restart Claude
+Desktop. Use the full path to `uv` (`which uv`): Claude Desktop doesn't see your shell's `PATH`.
+
+```json
+{
+  "mcpServers": {
+    "wise-mcp": {
+      "command": "/opt/homebrew/bin/uv",
+      "args": ["--directory", "/path/to/wise_mcp", "run", "wise-mcp"]
+    }
+  }
+}
+```
+
+Then ask, for example: *"How does life satisfaction in France compare with the OECD average?"*,
+*"Is life expectancy in the US improving?"* or *"Where is the gender gap in feeling safe at night
+widest?"*. The **Country well-being briefing** prompt writes a How's Life?-style country note.
+
+| Tool | What it answers |
+|---|---|
+| `find_measures` | Which measure code covers a topic ("NEET", "trust") |
+| `describe_measure` | Unit, which direction is better, threshold for meaningful change, coverage |
+| `compare_countries` | OECD members ranked on one measure, against the OECD average |
+| `trend` | Improving, deteriorating or no clear change since ~2010 or since 2019 |
+| `group_gaps` | Women vs men, age groups or education levels |
+| `country_profile` | A country's 36 headline indicators: strengths, weaknesses, rank |
+| `country_trends` | All 36 headline indicators for one country: improving or not, in one call |
+| `better_life_36` | Overall well-being score, with optional weights per dimension |
+
+All tools are read-only and answer from the local cache, so they never spend the OECD API's
+rate limit.
+
 ## Development
 
 Requires [uv](https://docs.astral.sh/uv/).

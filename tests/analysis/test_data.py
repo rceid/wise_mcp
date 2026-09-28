@@ -107,3 +107,28 @@ class TestFindMeasures:
     def test_empty_query(self, catalogue):
         with pytest.raises(AnalysisError, match="at least one word"):
             catalogue.find_measures("of the")
+
+
+def test_countries_can_be_given_by_english_name():
+    data = make_data([obs("FRA", "11_1", 2024, 7.1)], {"11_1": LIFE_SATISFACTION})
+    assert data.check_countries(["country fra", "FRA"]) == ["FRA", "FRA"]
+
+
+def test_coverage_lists_countries_years_and_breakdowns():
+    rows = series("11_1", {"FRA": {2010: 7.0, 2024: 7.1}, "DEU": {2015: 7.2}}) + [
+        obs("FRA", "11_1", 2024, 7.0, sex="F", unit="PT_SUB"),
+        obs("FRA", "11_1", 2024, 7.2, sex="M", unit="PT_SUB"),
+    ]
+    coverage = make_data(rows, {"11_1": LIFE_SATISFACTION}).coverage("11_1")
+    assert coverage == {
+        "countries": 2,
+        "first_year": 2010,
+        "last_year": 2024,
+        "breakdowns": ["sex"],
+    }
+
+
+def test_describe_uses_a_corrected_unit_label():
+    emissions = Measure("12_8", "lower", unit_label="Tonnes of CO2-equivalent per person")
+    data = make_data([obs("FRA", "12_8", 2023, 5.7, unit="PT")], {"12_8": emissions})
+    assert data.describe("12_8")["unit"] == "Tonnes of CO2-equivalent per person"
