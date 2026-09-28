@@ -29,6 +29,15 @@ Each item gives **what**, a real **example**, and **what `wise_mcp` does**.
   around 2010 or after 2019.
 - **`wise_mcp`:** the OECD change over time uses only members with both a baseline and an end value.
 
+### The newest years have fewer countries, so trend lines stop early
+
+- **What:** recent years are published for fewer countries, so a trend line that requires every
+  country to have every year can collapse to almost nothing if it runs to the newest year.
+- **Example:** in a life expectancy chart that includes Mexico (data to 2024), too few members have
+  a 2024 value. Stopping at 2023 keeps 37 members in every year.
+- **`wise_mcp`:** the OECD trend line stops at the last year that at least half the reporting
+  members share, and the chart says where it stops ("37 members with data in every year to 2023").
+
 ### Each country's "latest" value is from a different year
 
 - **What:** the latest available year varies by country, sometimes by several years.
@@ -155,6 +164,15 @@ Each item gives **what**, a real **example**, and **what `wise_mcp` does**.
   indicator goes back to 2004 for other countries. With no value around 2010 there is no baseline,
   so France's income-inequality trend can't be assessed.
 - **`wise_mcp`:** trends mark such countries "insufficient data" and list them in the caveats.
+
+### A country's score and its rank can disagree
+
+- **What:** the report's 0-1 scores rescale each indicator between the worst and best member. When
+  most members are bunched at one end, a country can score near the top yet rank in the middle.
+- **Example:** France's exposure to extreme temperatures scores 0.97 (almost the best) but ranks
+  25th of 38, because most members are at or near 0% exposed. Homicides show the same pattern.
+- **`wise_mcp`:** the profile chart shows both, bar length for the score and colour for the rank
+  third, and its subtitle explains why they can disagree.
 
 ### Some values can't be compared across countries
 
