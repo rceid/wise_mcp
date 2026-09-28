@@ -32,10 +32,16 @@ widest?"*. The **Country well-being briefing** prompt writes a How's Life?-style
 | `country_trends` | All 36 headline indicators for one country: improving or not, in one call |
 | `better_life_36` | Overall well-being score, with optional weights per dimension |
 | `suggest_charts` | Up to four charts that fit a question, each with a preview |
-| `show_chart` | One chart full size, with its data as a table |
+| `show_chart` | One chart full size, with its data as a table. In Claude Desktop, an interactive panel |
 
 All tools are read-only and answer from the local cache, so they never spend the OECD API's
 rate limit.
+
+In Claude Desktop, `show_chart` opens the chart as an interactive panel (an
+[MCP App](https://github.com/modelcontextprotocol/ext-apps)). You can hover for exact values
+and switch between the charts suggested for the question with tabs. The panel follows Desktop's
+light or dark theme, and tells Claude which chart is on screen. Other clients get a PNG. The
+panel runs offline: Vega is bundled in `src/wise_mcp/app/vendor`.
 
 ## Development
 

@@ -251,6 +251,16 @@ to the data itself.
 - **Status:** built. The profile table now also shows each indicator's code, and the server's
   instructions tell Claude to prefer `country_trends` for a country's overall picture.
 
+### An interactive chart shouldn't cost Claude's attention
+
+- **What:** a chart's Vega-Lite spec carries its data (tens of KB). If `show_chart` returned it,
+  Claude would read all of it on every chart.
+- **Idea:** the chart panel fetches the spec itself, through a tool only the panel can call
+  (`chart_view`, visibility "app"). Claude gets the same short table as before. When you switch
+  tabs, the panel sends Claude just the new chart's title and table.
+- **Status:** built (PR 5b). A second lesson: Claude Desktop's sandbox forbids `eval`, which Vega
+  uses to compile its expressions, so the panel ships `vega-interpreter` instead.
+
 ## Choices `wise_mcp` makes where the OECD doesn't specify
 
 - Strengths and weaknesses are the top and bottom thirds of members.
