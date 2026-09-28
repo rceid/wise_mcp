@@ -96,10 +96,14 @@ class TestOecdChange:
         assert result.oecd["countries"] == 2
 
 
-def test_series_for_charts_covers_each_country_period():
-    values = {"FRA": {2008: 6.0, 2010: 7.0, 2015: 7.2, 2024: 7.4}}
+def test_series_for_charts_starts_at_the_period_even_without_an_assessment():
+    values = {"FRA": {2008: 6.0, 2010: 7.0, 2015: 7.2, 2024: 7.4}, "DEU": {2011: 7.0, 2012: 7.1}}
     data = make_data(series("11_1", values), {"11_1": LIFE_SATISFACTION})
-    assert trend(data, "11_1").series["time_period"].tolist() == [2010, 2015, 2024]
+    result = trend(data, "11_1")
+    shown = result.series.groupby("ref_area")["time_period"].apply(list).to_dict()
+    # DEU has no value after 2019, so its change can't be assessed, but its line still shows.
+    assert shown == {"DEU": [2011, 2012], "FRA": [2010, 2015, 2024]}
+    assert result.changes.set_index("ref_area").loc["DEU", "assessment"] == "insufficient data"
 
 
 def test_no_threshold_is_explained():
