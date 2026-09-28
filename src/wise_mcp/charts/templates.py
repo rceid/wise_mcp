@@ -73,7 +73,7 @@ def _status_color(field: str, statuses: pd.Series) -> alt.Color:
         scale=alt.Scale(
             domain=[f"{STATUS[s][1]} {s}" for s in present], range=[STATUS[s][0] for s in present]
         ),
-        legend=alt.Legend(title=None),
+        legend=alt.Legend(title=None, columns=3),  # five on one row overflow the panel
     )
 
 
@@ -153,11 +153,18 @@ def _ranking(result: Comparison, highlight: list[str] | None, mark: str) -> Any:
             [{"x": average.value, "label": f"{average.label} average: {average.value:,.2f}"}]
         )
         reference = alt.Chart(alt.Data(values=_records(rule)))
+        # The label goes on whichever side of the line has room, so it never runs off the chart.
+        low = 0 if mark == "bar" else table["obs_value"].min()
+        span = table["obs_value"].max() - low
+        right_side = span <= 0 or (average.value - low) / span < 0.6
         layers += [
             reference.mark_rule(color=INK_SECONDARY, strokeWidth=1.5).encode(x="x:Q"),
-            reference.mark_text(align="left", dx=4, dy=-6, color=INK_SECONDARY).encode(
-                x="x:Q", y=alt.value(0), text="label:N"
-            ),
+            reference.mark_text(
+                align="left" if right_side else "right",
+                dx=4 if right_side else -4,
+                dy=-6,
+                color=INK_SECONDARY,
+            ).encode(x="x:Q", y=alt.value(0), text="label:N"),
         ]
     if measure["better"] == "target" and measure["target"]:
         target = alt.Chart(alt.Data(values=[{"x": measure["target"]}]))
@@ -167,7 +174,8 @@ def _ranking(result: Comparison, highlight: list[str] | None, mark: str) -> Any:
     return _titled(
         alt.layer(*layers).properties(width=WIDTH, height=ROW * len(table)),
         measure["name"],
-        f"{_about(measure)}. {ranked}, each country's latest year.",
+        f"{_about(measure)}.",
+        f"{ranked}, each country's latest year.",
         _flag_note(table),
     )
 
@@ -346,12 +354,18 @@ def change_arrows(result: Trend) -> Any:
         else "No published threshold, so changes are not classed"
     )
     missing = result.changes[result.changes["end_year"].isna()]["ref_area"].tolist()
+    # Wrapped, or a long list of countries widens the chart past the panel.
+    missing_lines = [
+        ("Not enough data: " if i == 0 else "") + ", ".join(missing[i : i + 14])
+        for i in range(0, len(missing), 14)
+    ]
     return _titled(
         alt.layer(*layers).properties(width=WIDTH, height=ROW * len(rows)),
         f"{measure['name']}: change {result.period}",
-        f"{_about(measure)}. Open circle: baseline; dot: latest.",
+        f"{_about(measure)}.",
+        "Open circle: baseline; dot: latest.",
         f"{rule_text} (How's Life? 2024).",
-        f"Not enough data: {', '.join(missing)}" if missing else None,
+        *missing_lines,
     )
 
 
@@ -421,7 +435,8 @@ def gap_dots(result: GroupGaps) -> Any:
     return _titled(
         alt.layer(span, dots).properties(width=WIDTH, height=max(ROW * len(order), MIN_HEIGHT)),
         f"{measure['name']}: gaps by {result.breakdown}",
-        f"{_about(measure)}. Widest gaps first; each country's latest year with every group.",
+        f"{_about(measure)}.",
+        "Widest gaps first; each country's latest year with every group.",
     )
 
 
@@ -446,7 +461,7 @@ def profile_scores(result: Profile) -> Any:
             continue
         order = part["name"].tolist()
         data = alt.Data(values=_records(part))
-        y = alt.Y("name:N", sort=order, title=None, axis=alt.Axis(labelLimit=320))
+        y = alt.Y("name:N", sort=order, title=None, axis=alt.Axis(labelLimit=220))
         x = alt.X("score:Q", title="Score (0 = worst member, 1 = best)", scale=alt.Scale(
             domain=[0, 1]))  # fmt: skip
         tiers = [t for t in TIERS if t in set(part["tier"])]
@@ -478,7 +493,10 @@ def profile_scores(result: Profile) -> Any:
         )
         charts.append(
             alt.layer(bars, ranks).properties(
-                width=WIDTH, height=ROW * len(part), title=f"{kind.capitalize()} well-being"
+                # narrower bars leave room for the rank written after a full-length bar
+                width=WIDTH - 60,
+                height=ROW * len(part),
+                title=f"{kind.capitalize()} well-being",
             )
         )
     if not charts:

@@ -6,15 +6,29 @@ from typing import Any
 
 import vl_convert
 
-from wise_mcp.charts.style import CONFIG
+from wise_mcp.charts.style import DARK_MARKS, config
 
 THUMBNAIL_SCALE = 0.5
 FULL_SCALE = 1.5
 
 
-def spec(chart: Any) -> dict[str, Any]:
-    """The chart's Vega-Lite spec with the house style applied."""
-    return {**chart.to_dict(), "config": CONFIG}
+def spec(chart: Any, theme: str = "light") -> dict[str, Any]:
+    """The chart's Vega-Lite spec with the house style applied, light or dark. Dark swaps every
+    mark colour for its dark step, so the templates only ever name the light palette."""
+    body = chart.to_dict()
+    if theme == "dark":
+        body = _recolour(body)
+    return {**body, "config": config(theme)}
+
+
+def _recolour(node: Any) -> Any:
+    if isinstance(node, dict):
+        return {key: _recolour(value) for key, value in node.items()}
+    if isinstance(node, list):
+        return [_recolour(value) for value in node]
+    if isinstance(node, str):
+        return DARK_MARKS.get(node, node)
+    return node
 
 
 def png(chart: Any, scale: float = FULL_SCALE) -> bytes:
