@@ -48,6 +48,67 @@ def goodness(measure: Measure, values: Any) -> Any:
     return -abs(values - measure.target)
 
 
+def period_label(start: int, end: int) -> str:
+    """ "2014–16", or "2019" for a single year."""
+    if start == end:
+        return str(start)
+    if start // 100 == end // 100:
+        return f"{start}–{end % 100:02d}"
+    return f"{start}–{end}"
+
+
+def periods(series: pd.DataFrame, by: str | None = "ref_area") -> pd.DataFrame:
+    """A pooled measure's series (see measures.yaml) with one row per period instead of per year.
+
+    The OECD publishes these measures as one value per period of up to three years, repeated for
+    every year in it, so a period is a run of consecutive years with the same value (for each
+    `by` group, e.g. country). Adds `period_start`, `period_end` and `period` ("2014–16"), and
+    moves `time_period` to the period's middle so a chart puts the point where it belongs. A
+    series break anywhere in the period flags the whole period.
+    """
+    if series.empty:
+        return series.assign(period_start=[], period_end=[], period=[])
+    keys = [by] if by else []
+    frame = series.sort_values([*keys, "time_period"]).reset_index(drop=True)
+    new = (frame["obs_value"].diff() != 0) | (frame["time_period"].diff() != 1)
+    if by:
+        new |= frame[by] != frame[by].shift()
+    block = new.cumsum()
+    grouped = frame.groupby(block)
+    rows = grouped.first()
+    rows["period_start"] = grouped["time_period"].min()
+    rows["period_end"] = grouped["time_period"].max()
+    if "obs_status" in frame:
+        broken = grouped["obs_status"].agg(lambda s: (s == "B").any())
+        rows.loc[broken, "obs_status"] = "B"
+    rows["period"] = [
+        period_label(a, b) for a, b in zip(rows["period_start"], rows["period_end"], strict=True)
+    ]
+    rows["time_period"] = (rows["period_start"] + rows["period_end"]) / 2
+    return rows.reset_index(drop=True)
+
+
+def period_of(series: pd.DataFrame, ref_area: str, year: int) -> str:
+    """The period ("2023–25") a country's value for `year` belongs to, in a pooled series."""
+    rows = periods(series[series["ref_area"] == ref_area])
+    match = rows[(rows["period_start"] <= year) & (rows["period_end"] >= year)]
+    return match["period"].iloc[0] if not match.empty else str(year)
+
+
+def pooled_caveat(names: list[str], series: pd.DataFrame, ref_area: str, years: list[int]) -> str:
+    """Warn that years in a pooled measure stand for whole periods, with examples for one
+    country (e.g. "2025 stands for 2023–25")."""
+    examples = " and ".join(
+        f"{year} stands for {period_of(series, ref_area, year)}" for year in dict.fromkeys(years)
+    )
+    subject = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    verb = "is" if len(names) == 1 else "are"
+    return (
+        f"{subject} {verb} published as one value per period of up to three years, repeated for "
+        f"every year in it, so a year shown stands for its whole period (e.g. {examples})."
+    )
+
+
 @dataclass(frozen=True)
 class WellbeingData:
     observations: pd.DataFrame  # current and future well-being, as stored by DataStore
@@ -157,6 +218,7 @@ class WellbeingData:
             "target": measure.target,
             "threshold": measure.threshold,
             "headline": measure.headline,
+            "pooled": measure.pooled,
             "note": measure.note,
         }
 

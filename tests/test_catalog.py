@@ -75,6 +75,7 @@ class TestValidation:
             ("better: higher\n  threshold: -1", "threshold must be a number of at least 0"),
             ("better: higher\n  comparable: sometimes", "comparable must be true or false"),
             ("better: higher\n  unit_label: 3", "unit_label must be text"),
+            ("better: higher\n  pooled: yearly", "pooled must be true or false"),
         ],
     )
     def test_invalid_entries_name_the_measure(self, entry, message):
@@ -91,6 +92,12 @@ class TestValidation:
     def test_malformed_code_is_rejected(self):
         with pytest.raises(ValueError, match="not a How's Life\\? measure code"):
             parse_measures('"life_satisfaction":\n  better: higher\n')
+
+
+def test_the_survey_measures_published_per_period_are_marked_pooled(measures):
+    # Checked against the data: 2008-10, 2011-13, ..., 2023-25 hold one value for every country.
+    pooled = {code for code, m in measures.items() if m.pooled}
+    assert pooled == {"7_1", "7_1_DEP", "10_2", "10_2_DEP", "11_2", "11_3", "14_3", "14_7"}
 
 
 def test_oecd_has_38_members():

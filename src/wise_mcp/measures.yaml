@@ -19,6 +19,9 @@
 #               (by sex, age or education) use a separate "_SUB" unit; totals never do.
 #   unit_label  How to describe the unit, where the OECD's own label is wrong.
 #   comparable  false when values can't be ranked across countries (e.g. absolute areas).
+#   pooled      true when the OECD publishes one value per period (2008-10, 2011-13, ...,
+#               2023-25) and repeats it for every year of the period. Charts then show one point
+#               per period, and results say which period a year's value belongs to.
 #   note        Anything a reader could easily get wrong.
 #
 # Codes are quoted because YAML reads 1_1 unquoted as the number 11.
@@ -244,10 +247,12 @@
 "7_1":  # Social support [Percentage of population aged 15 years or over]
   name: Social support
   better: higher
+  pooled: true
   threshold: 3
 "7_1_DEP":  # Lack of social support [Percentage of population aged 15 years or over]
   name: Lack of social support
   better: lower
+  pooled: true
   headline: deprivation
   note: Not the exact complement of 7_1, so it has no published threshold of its own.
 "7_2":  # Time spent in social interactions [Hours per week]
@@ -313,12 +318,14 @@
 "10_2":  # Feeling safe at night [Percentage of population aged 15 years or over]
   name: Feeling safe at night
   better: higher
+  pooled: true
   headline: horizontal_inequality
   threshold: 3
   note: "The headline indicator is the gap between women and men in this measure, not its average.
     The goal for that gap is zero."
 "10_2_DEP":  # Not feeling safe at night [Percentage of population aged 15 years or over]
   better: lower
+  pooled: true
   note: Not the exact complement of 10_2. No published threshold.
 "10_3":  # Road deaths [Deaths per 100 000 inhabitants]
   name: Road deaths
@@ -343,11 +350,13 @@
 "11_2":  # Negative affect balance [Percentage of population aged 15 years or over]
   name: Negative affect balance
   better: lower
+  pooled: true
   headline: deprivation
   threshold: 3
 "11_3":  # Feelings of physical pain [Percentage of population aged 15 years or over]
   name: Pain
   better: lower
+  pooled: true
   threshold: 3
 
 # ---- 12. Natural capital -------------------------------------------------------
@@ -462,6 +471,7 @@
 "14_3":  # Trust in government [Percentage of population aged 15 years or over]
   name: Trust in national government
   better: higher
+  pooled: true
   headline: stock
   threshold: 3
 "14_4":  # Government stakeholder engagement [0-4 scale]
@@ -482,6 +492,7 @@
 "14_7":  # Volunteering through organisations [Percentage of population aged 15 years or over]
   name: Volunteering
   better: higher
+  pooled: true
   threshold: 3
 
 # ---- 15. Economic capital ------------------------------------------------------

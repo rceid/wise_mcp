@@ -12,12 +12,21 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness
+from wise_mcp.analysis.data import (
+    AnalysisError,
+    WellbeingData,
+    goodness,
+    periods,
+    pooled_caveat,
+)
 from wise_mcp.catalog import Measure
 
 Assessment = Literal[
     "improving", "deteriorating", "no clear change", "no threshold", "insufficient data"
 ]
+
+# An OECD trend line needs at least this many members with data in every year shown.
+MIN_TRENDLINE_COUNTRIES = 5
 
 # Values carry up to ~10 decimals, so 7.2 - 6.9 comes out as 0.29999999999999982. Without a
 # tolerance a change of exactly the threshold would be missed.
@@ -58,8 +67,10 @@ class Trend:
     measure: dict[str, Any]
     period: str
     changes: pd.DataFrame  # one row per country: baseline, end, change, assessment
-    series: pd.DataFrame  # every year from each country's baseline to its end, for charts
+    series: pd.DataFrame  # every value from the start of the period on, for line charts; one row
+    # per period (with `period`, e.g. "2014–16") for pooled measures
     oecd: dict[str, Any] | None  # the same assessment for the OECD average
+    oecd_line: pd.DataFrame  # the OECD average in each year shown, for charts (may be empty)
     caveats: list[str]
 
 
@@ -94,14 +105,28 @@ def trend(
     # countries are shown.
     changes = data.with_labels(changes_by_country(measure, series, period))
     oecd = oecd_change(measure, changes)
-    bounds = series.merge(changes[["ref_area", "start_year", "end_year"]], on="ref_area")
-    in_period = (bounds["time_period"] >= bounds["start_year"]) & (
-        bounds["time_period"] <= bounds["end_year"]
-    )
-    window = series[in_period.fillna(False).to_numpy()]
+    # Charts show every value from the start of the baseline window on, whether or not a
+    # country's change can be assessed. A pooled measure shows whole periods, so the window
+    # reaches back to the start of the period holding the first year (2008 for 2008-10).
+    first_year = period.baseline_from
+    if measure.pooled:
+        pooled = periods(series)
+        first_year = int(pooled[pooled["period_end"] >= first_year]["period_start"].min())
+    window = series[series["time_period"] >= first_year]
     if countries is not None:
         changes = changes[changes["ref_area"].isin(countries)]
         window = window[window["ref_area"].isin(countries)]
+    oecd_line = oecd_trendline(series, sorted(window["time_period"].unique()))
+    if measure.pooled:
+        window = periods(window)
+        oecd_line = periods(oecd_line, by=None) if not oecd_line.empty else oecd_line
+
+    caveats = _caveats(measure, changes)
+    assessed = changes[changes["end_year"].notna()]
+    if measure.pooled and not assessed.empty:
+        row = assessed.iloc[0]
+        years = [int(row["start_year"]), int(row["end_year"])]
+        caveats.append(pooled_caveat([data.name(code)], series, row["ref_area"], years))
 
     return Trend(
         measure=data.describe(code),
@@ -109,8 +134,38 @@ def trend(
         changes=changes.reset_index(drop=True),
         series=data.with_labels(window.reset_index(drop=True)),
         oecd=oecd,
-        caveats=_caveats(measure, changes),
+        oecd_line=oecd_line,
+        caveats=caveats,
     )
+
+
+def oecd_trendline(series: pd.DataFrame, years: list[int]) -> pd.DataFrame:
+    """The OECD average in each of `years`, over only the members with data in every one of them,
+    as How's Life? draws trend lines (Reader's Guide), so the line can't move just because the
+    countries reporting change.
+
+    If too few members have the latest years, the line stops earlier: trailing years are dropped
+    until enough members have every remaining year (at least MIN_TRENDLINE_COUNTRIES, and at
+    least half of those reporting in the first year). Empty if even two years don't qualify."""
+    years = sorted(years)
+    empty = pd.DataFrame(columns=["time_period", "obs_value", "countries"])
+    if not years:
+        return empty
+    reporting = series[series["time_period"] == years[0]]["ref_area"].nunique()
+    needed = max(MIN_TRENDLINE_COUNTRIES, reporting // 2)
+    while len(years) >= 2:
+        shown = series[series["time_period"].isin(years)]
+        complete = shown.groupby("ref_area")["time_period"].nunique() == len(years)
+        members = complete[complete].index
+        if len(members) >= needed:
+            line = (
+                shown[shown["ref_area"].isin(members)]
+                .groupby("time_period", as_index=False)["obs_value"]
+                .mean()
+            )
+            return line.assign(countries=len(members))
+        years = years[:-1]
+    return empty
 
 
 def changes_by_country(measure: Measure, series: pd.DataFrame, period: Period) -> pd.DataFrame:

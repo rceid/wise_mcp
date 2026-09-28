@@ -17,7 +17,7 @@ pytestmark = pytest.mark.anyio
 
 TOOLS = {
     "find_measures", "describe_measure", "compare_countries", "trend", "group_gaps",
-    "country_profile", "country_trends", "better_life_36",
+    "country_profile", "country_trends", "better_life_36", "suggest_charts", "show_chart",
 }  # fmt: skip
 
 
@@ -199,3 +199,25 @@ async def test_country_trends_answers_in_one_call(client):
 async def test_the_measure_note_is_shown_by_every_tool(client, tool, arguments):
     _, text = await call(client, tool, **arguments)
     assert "About this measure: The headline indicator is the gap between women and men" in text
+
+
+async def test_suggest_charts_returns_ids_and_previews(client):
+    result = await client.call_tool("suggest_charts", {"measure": "11_1", "countries": ["FRA"]})
+    assert not result.is_error
+    listing = result.content[0].text
+    assert "id: `dot_plot?measure=11_1&highlight=FRA`" in listing
+    images = [block for block in result.content if block.type == "image"]
+    assert images and all(block.mime_type == "image/png" for block in images)
+    assert result.content[-1].text.startswith("Source: OECD How's Life?")
+
+
+async def test_show_chart_returns_the_image_and_its_table(client):
+    result = await client.call_tool("show_chart", {"chart_id": "gap_dots?measure=10_2&by=sex"})
+    assert not result.is_error
+    assert [block.type for block in result.content] == ["image", "text", "text"]
+    assert "| Female | Male |" in result.content[1].text
+
+
+async def test_show_chart_explains_a_bad_id(client):
+    error, text = await call(client, "show_chart", chart_id="pie_chart?measure=11_1")
+    assert error and "Use suggest_charts" in text

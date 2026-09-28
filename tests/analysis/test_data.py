@@ -3,6 +3,7 @@ import pytest
 from builders import make_data, obs, series
 
 from wise_mcp.analysis import AnalysisError, WellbeingData, goodness
+from wise_mcp.analysis.data import period_label, period_of, periods
 from wise_mcp.catalog import Measure, load_measures
 
 LIFE_SATISFACTION = Measure("11_1", "higher", threshold=0.2)
@@ -132,3 +133,37 @@ def test_describe_uses_a_corrected_unit_label():
     emissions = Measure("12_8", "lower", unit_label="Tonnes of CO2-equivalent per person")
     data = make_data([obs("FRA", "12_8", 2023, 5.7, unit="PT")], {"12_8": emissions})
     assert data.describe("12_8")["unit"] == "Tonnes of CO2-equivalent per person"
+
+
+POOLED = {2008: 44.3, 2009: 44.3, 2010: 44.3, 2011: 40.4, 2012: 40.4, 2013: 40.4, 2014: 29.2}
+
+
+class TestPooledPeriods:
+    def test_runs_of_one_value_become_one_period_placed_at_its_middle(self):
+        rows = pd.DataFrame(series("14_3", {"FRA": POOLED}))
+        collapsed = periods(rows[["ref_area", "time_period", "obs_value", "obs_status"]])
+        assert collapsed["period"].tolist() == ["2008–10", "2011–13", "2014"]
+        assert collapsed["time_period"].tolist() == [2009, 2012, 2014]
+        assert collapsed["obs_value"].tolist() == [44.3, 40.4, 29.2]
+
+    def test_countries_and_gaps_in_the_years_start_new_periods(self):
+        values = {"FRA": {2008: 1.0, 2009: 1.0}, "DEU": {2010: 1.0, 2012: 1.0}}
+        rows = pd.DataFrame(series("14_3", values))
+        assert periods(rows)["period"].tolist() == ["2010", "2012", "2008–09"]
+
+    def test_a_break_in_any_year_flags_the_period(self):
+        rows = pd.DataFrame(series("14_3", {"FRA": POOLED}))
+        rows.loc[rows["time_period"] == 2012, "obs_status"] = "B"
+        assert periods(rows)["obs_status"].tolist() == ["A", "B", "A"]
+
+    def test_period_of_a_year(self):
+        rows = pd.DataFrame(series("14_3", {"FRA": POOLED}))
+        assert period_of(rows, "FRA", 2010) == "2008–10"
+        assert period_of(rows, "FRA", 2014) == "2014"
+
+    @pytest.mark.parametrize(
+        ("start", "end", "label"), [(2014, 2016, "2014–16"), (2019, 2019, "2019"),
+                                    (1998, 2001, "1998–2001")],
+    )  # fmt: skip
+    def test_period_label(self, start, end, label):
+        assert period_label(start, end) == label

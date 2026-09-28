@@ -19,7 +19,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 
-from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness
+from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness, pooled_caveat
 from wise_mcp.analysis.trends import Period, changes_by_country, no_change, oecd_change
 from wise_mcp.catalog import FIRST_FUTURE_DIMENSION, Measure
 
@@ -187,7 +187,20 @@ def country_profile(data: WellbeingData, country: str) -> Profile:
         m.code for m in data.measures.values()
         if m.headline and m.code not in set(indicators["code"])
     ]  # fmt: skip
-    caveats = []
+    caveats = [
+        f"OECD averages and ranks use each member's latest value after {LATEST_AFTER}, as How's "
+        "Life? does, so they can differ slightly from compare_countries, which uses every "
+        "member's latest value whatever its year."
+    ]
+    pooled = indicators[indicators["code"].map(lambda c: data.measure(c).pooled)]
+    if not pooled.empty:
+        first = pooled.iloc[0]
+        caveats.append(
+            pooled_caveat(
+                pooled["name"].tolist(), data.series(first["code"]), ref_area,
+                [int(first["time_period"])],
+            )
+        )  # fmt: skip
     if missing:
         caveats.append(
             f"No data after {LATEST_AFTER} for {len(missing)} headline indicator(s): "
@@ -254,6 +267,18 @@ def country_trends(data: WellbeingData, country: str, since: int | str = 2010) -
             f"How's Life? publishes no fixed threshold for {', '.join(unclassed)}, so their "
             "changes are shown but not classed."
         )
+    pooled = indicators[
+        indicators["code"].map(lambda c: data.measure(c).pooled) & indicators["end_year"].notna()
+    ]
+    if not pooled.empty:
+        first = pooled.iloc[0]
+        caveats.append(
+            pooled_caveat(
+                pooled["name"].tolist(), data.series(first["code"]), ref_area,
+                [int(first["start_year"]), int(first["end_year"])],
+            )
+            + " Their changes compare periods."
+        )  # fmt: skip
     caveats.append(
         "Feeling safe at night is assessed as the gender gap (men minus women), where "
         "improving means the gap narrowed. The OECD average compares the same members at both "

@@ -31,6 +31,8 @@ widest?"*. The **Country well-being briefing** prompt writes a How's Life?-style
 | `country_profile` | A country's 36 headline indicators: strengths, weaknesses, rank |
 | `country_trends` | All 36 headline indicators for one country: improving or not, in one call |
 | `better_life_36` | Overall well-being score, with optional weights per dimension |
+| `suggest_charts` | Up to four charts that fit a question, each with a preview |
+| `show_chart` | One chart full size, with its data as a table |
 
 All tools are read-only and answer from the local cache, so they never spend the OECD API's
 rate limit.

@@ -96,10 +96,14 @@ class TestOecdChange:
         assert result.oecd["countries"] == 2
 
 
-def test_series_for_charts_covers_each_country_period():
-    values = {"FRA": {2008: 6.0, 2010: 7.0, 2015: 7.2, 2024: 7.4}}
+def test_series_for_charts_starts_at_the_period_even_without_an_assessment():
+    values = {"FRA": {2008: 6.0, 2010: 7.0, 2015: 7.2, 2024: 7.4}, "DEU": {2011: 7.0, 2012: 7.1}}
     data = make_data(series("11_1", values), {"11_1": LIFE_SATISFACTION})
-    assert trend(data, "11_1").series["time_period"].tolist() == [2010, 2015, 2024]
+    result = trend(data, "11_1")
+    shown = result.series.groupby("ref_area")["time_period"].apply(list).to_dict()
+    # DEU has no value after 2019, so its change can't be assessed, but its line still shows.
+    assert shown == {"DEU": [2011, 2012], "FRA": [2010, 2015, 2024]}
+    assert result.changes.set_index("ref_area").loc["DEU", "assessment"] == "insufficient data"
 
 
 def test_no_threshold_is_explained():
@@ -108,3 +112,31 @@ def test_no_threshold_is_explained():
     result = trend(data, "6_2")
     assert result.changes.loc[0, "assessment"] == "no threshold"
     assert "no fixed threshold" in result.caveats[0] and "PISA" in result.caveats[0]
+
+
+class TestPooledMeasures:
+    TRUST = Measure("14_3", "higher", threshold=3, pooled=True)
+    VALUES = {
+        c: {2008: 44 + i, 2009: 44 + i, 2010: 44 + i, 2011: 40 + i, 2012: 40 + i, 2013: 40 + i,
+            2023: 37 + i, 2024: 37 + i, 2025: 37 + i}
+        for i, c in enumerate(["FRA", "DEU", "ITA", "ESP", "NLD"])
+    }  # fmt: skip
+
+    def result(self):
+        data = make_data(series("14_3", self.VALUES), {"14_3": self.TRUST})
+        return trend(data, "14_3", ["FRA"])
+
+    def test_charts_get_one_row_per_whole_period(self):
+        result = self.result()
+        assert result.series["period"].tolist() == ["2008–10", "2011–13", "2023–25"]
+        assert result.oecd_line["period"].tolist() == ["2008–10", "2011–13", "2023–25"]
+
+    def test_the_assessment_is_unchanged_and_the_periods_are_explained(self):
+        result = self.result()
+        row = result.changes.set_index("ref_area").loc["FRA"]
+        assert (row["start_year"], row["end_year"], row["assessment"]) == (
+            2010, 2025, "deteriorating",
+        )  # fmt: skip
+        assert any(
+            "2010 stands for 2008–10 and 2025 stands for 2023–25" in c for c in result.caveats
+        )

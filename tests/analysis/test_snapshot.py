@@ -84,6 +84,10 @@ class TestCompareCountries:
         assert result.table["ref_area"].tolist() == ["FRA"]
         assert result.oecd_average.countries == 3
 
+    def test_subset_keeps_each_country_s_rank_among_all_members(self, data):
+        # France is last of three, not first of the one country asked about.
+        assert compare_countries(data, "11_1", ["FRA"]).table["rank"].tolist() == [3]
+
     def test_measure_description_travels_with_the_result(self, data):
         described = compare_countries(data, "11_1").measure
         assert (described["code"], described["better"]) == ("11_1", "higher")
