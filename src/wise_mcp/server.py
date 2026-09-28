@@ -9,9 +9,10 @@ import logging
 import sys
 from collections.abc import Callable
 from importlib.metadata import version
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from mcp.server import MCPServer
+from mcp.server.mcpserver import Image
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field
@@ -19,6 +20,7 @@ from pydantic import Field
 from wise_mcp import analysis, render
 from wise_mcp.analysis import AnalysisError, WellbeingData
 from wise_mcp.analysis.headlines import INDEX_NAME
+from wise_mcp.charts import catalog, export
 from wise_mcp.sdmx import SdmxError
 from wise_mcp.store import DataStore
 
@@ -36,7 +38,8 @@ than 38 (e.g. "OECD 34").
 changes are "no clear change". Don't describe them as improvements.
 - Pass on the caveats the tools return, such as series breaks, estimates and differing years.
 - Only the 38 OECD members are covered.
-- Cite the source line at the end of each tool result."""
+- Cite the source line at the end of each tool result.
+- When a chart would help, call suggest_charts, then show_chart with the chosen chart's id."""
 
 READ_ONLY = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False)
 
@@ -82,15 +85,19 @@ def create_server(store: DataStore | None = None) -> MCPServer:
         version=version("wise-mcp"),
     )
 
-    def answer(build: Callable[[WellbeingData], str]) -> str:
-        """Run one analysis. Expected failures become ToolErrors, whose message Claude sees (any
-        other exception reaches it only as "Error executing tool")."""
+    def answer(build: Callable[[WellbeingData], Any]) -> Any:
+        """Run one analysis, returning Markdown or a list of text and images, with the source
+        at the end. Expected failures become ToolErrors, whose message Claude sees (any other
+        exception reaches it only as "Error executing tool")."""
         try:
-            return render.join(build(source.data()), source.citation())
+            result = build(source.data())
         except AnalysisError as exc:
             raise ToolError(str(exc)) from exc
         except SdmxError as exc:
             raise ToolError(f"The How's Life? data couldn't be loaded: {exc}") from exc
+        if isinstance(result, str):
+            return render.join(result, source.citation())
+        return [*result, source.citation()]
 
     @server.tool(annotations=READ_ONLY, structured_output=False)
     def find_measures(
@@ -201,6 +208,60 @@ def create_server(store: DataStore | None = None) -> MCPServer:
         indicators, with optional weights per dimension, like the Better Life Index. Equal
         weights reproduce the How's Life? 2024 method."""
         return answer(lambda data: render.index(analysis.wellbeing_index(data, weights, kind=kind)))
+
+    @server.tool(annotations=READ_ONLY, structured_output=False)
+    def suggest_charts(
+        measure: Annotated[
+            str | None, Field(description='Measure code, e.g. "11_1", if the question is about one')
+        ] = None,
+        country: Annotated[
+            str | None, Field(description="A country, if the question is about one country")
+        ] = None,
+        countries: Countries = None,
+        since: Annotated[
+            str, Field(description='Baseline for charts of change: "2010", "2019" or any year')
+        ] = "2010",
+    ) -> list[Any]:
+        """Suggest up to four charts that fit a question, each with a small preview image.
+        Pass what the question is about: a measure, a country, or a measure plus the countries
+        of interest (they get highlighted). Then call show_chart with the chosen chart's id."""
+
+        def build(data: WellbeingData) -> list[Any]:
+            lines = ["Charts that fit, best first. Call show_chart with an id to draw one.", ""]
+            previews: list[Any] = []
+            for option in catalog.suggest(data, measure, country, countries, since):
+                try:
+                    drawing = catalog.draw(data, option.id)
+                except AnalysisError:
+                    continue  # e.g. no country has data for the period: don't offer it
+                number = len(previews) // 2 + 1
+                lines.append(
+                    f"{number}. **{option.title}**  \n   id: `{option.id}`  \n   {option.why}"
+                )
+                previews += [
+                    f"Preview {number}: {option.title}",
+                    Image(data=export.png(drawing.chart, export.THUMBNAIL_SCALE), format="png"),
+                ]
+            if not previews:
+                raise AnalysisError("No chart fits: there isn't enough data for this question.")
+            return ["\n".join(lines), *previews]
+
+        return answer(build)
+
+    @server.tool(annotations=READ_ONLY, structured_output=False)
+    def show_chart(
+        chart_id: Annotated[
+            str, Field(description='An id from suggest_charts, e.g. "dot_plot?measure=11_1"')
+        ],
+    ) -> list[Any]:
+        """Draw one chart full size from an id that suggest_charts returned. Returns the image
+        and the same data as a table, so every value can be read without the picture."""
+
+        def build(data: WellbeingData) -> list[Any]:
+            drawing = catalog.draw(data, chart_id)
+            return [Image(data=export.png(drawing.chart), format="png"), drawing.table]
+
+        return answer(build)
 
     @server.prompt(title="Country well-being briefing")
     def country_briefing(
