@@ -93,3 +93,35 @@ class TestSuggestions:
     def test_every_suggestion_can_be_drawn(self, data, question):
         for option in catalog.suggest(data, since="2019", **question):
             assert catalog.draw(data, option.id).chart is not None
+
+
+class TestPanelTabs:
+    def test_tabs_are_the_suggestions_for_the_same_question(self, data):
+        options = catalog.related(data, "trend_lines?measure=11_1&countries=FRA&since=2019")
+        suggested = catalog.suggest(data, measure="11_1", countries=["FRA"], since="2019")
+        assert names(options) == names(suggested)
+
+    def test_the_chart_keeps_its_own_id_even_without_the_default_baseline(self):
+        # "since=2010" is the default: the chart must not appear twice.
+        values = {c: {2010: 6.0 + i, 2024: 7.0 + i} for i, c in enumerate(["FRA", "DEU", "ITA"])}
+        data = make_data(series("11_1", values), {"11_1": Measure("11_1", "higher")})
+        ids = [o.id for o in catalog.related(data, "change_arrows?measure=11_1")]
+        assert "change_arrows?measure=11_1" in ids
+        assert "change_arrows?measure=11_1&since=2010" not in ids
+
+    def test_charts_without_the_data_to_draw_are_left_out(self, data):
+        # The fixture starts in 2018, so nothing can be assessed since 2010.
+        ids = [o.id for o in catalog.related(data, "dot_plot?measure=11_1")]
+        assert not any(i.startswith("change_arrows") for i in ids)
+
+    def test_a_country_picture_offers_the_other_country_pictures(self, data):
+        options = catalog.related(data, "index_ranking?highlight=FRA")
+        assert names(options) == ["trend_grid", "profile_scores", "index_ranking"]
+
+    @pytest.mark.parametrize(
+        ("chart_id", "label"),
+        [("dot_plot?measure=11_1", "Ranking (dots)"), ("gap_dots?measure=10_2&by=age",
+         "Gaps by age"), ("trend_grid?country=FRA", "Trends")],
+    )  # fmt: skip
+    def test_tab_labels(self, chart_id, label):
+        assert catalog.tab_label(chart_id) == label

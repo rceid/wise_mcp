@@ -46,16 +46,31 @@ def chart_id(name: str, **params: Any) -> str:
     return f"{name}?{urlencode(flat, safe=',')}" if flat else name
 
 
-def draw(data: WellbeingData, id_: str) -> Drawing:
-    """Draw the chart an id describes."""
+def _parse(id_: str) -> tuple[str, dict[str, Any]]:
     parts = urlsplit(id_)
     name = parts.path
     if name not in _BUILDERS:
         raise AnalysisError(f"Unknown chart {name!r}. Use suggest_charts to get chart ids.")
-    params = {key: values[-1] for key, values in parse_qs(parts.query).items()}
+    params: dict[str, Any] = {key: values[-1] for key, values in parse_qs(parts.query).items()}
     for key in ("countries", "highlight"):
         if key in params:
             params[key] = params[key].split(",")
+    return name, params
+
+
+def _canonical(id_: str) -> tuple[str, tuple[tuple[str, str], ...]]:
+    """An id with its defaults filled in, so "change_arrows?measure=14_1" and
+    "change_arrows?measure=14_1&since=2010" count as the same chart."""
+    name, params = _parse(id_)
+    if name in _SINCE:
+        params.setdefault("since", "2010")
+    return name, tuple(sorted((k, ",".join(v) if isinstance(v, list) else v)
+                              for k, v in params.items()))  # fmt: skip
+
+
+def draw(data: WellbeingData, id_: str) -> Drawing:
+    """Draw the chart an id describes."""
+    name, params = _parse(id_)
     try:
         return _BUILDERS[name](data, **params)
     except TypeError as exc:  # a parameter the chart doesn't take
@@ -158,6 +173,48 @@ def suggest(
     return options[:MAX_OPTIONS]
 
 
+_TAB_LABELS = {
+    "ranked_bars": "Ranking (bars)", "dot_plot": "Ranking (dots)", "trend_lines": "Over time",
+    "change_arrows": "Change, all countries", "trend_grid": "Trends",
+    "profile_scores": "Strengths and weaknesses", "index_ranking": "Overall ranking",
+}  # fmt: skip
+
+
+def tab_label(id_: str) -> str:
+    """A few words naming a chart, for a tab in the panel: "Over time", "Gaps by sex"."""
+    name, params = _parse(id_)
+    if name == "gap_dots":
+        return f"Gaps by {params.get('by', 'sex')}"
+    return _TAB_LABELS[name]
+
+
+def related(data: WellbeingData, id_: str) -> list[ChartOption]:
+    """The charts suggested for the same question as a chart id, the chart itself included: the
+    tabs of the interactive panel. Charts without the data to draw are left out."""
+    name, params = _parse(id_)
+    countries = params.get("countries") or params.get("highlight")
+    if "measure" in params:
+        options = suggest(data, measure=params["measure"], countries=countries,
+                          since=params.get("since", "2010"))  # fmt: skip
+    else:  # a country picture; the index ranking names its country as the highlight
+        country = params.get("country") or (countries[0] if countries else None)
+        options = suggest(data, country=country, since=params.get("since", "2010"))
+    # The chart asked for keeps its own id, so the panel can mark its tab as the current one.
+    same = [o for o in options if _canonical(o.id) == _canonical(id_)]
+    if same:
+        options = [ChartOption(id_, o.title, o.why) if o in same else o for o in options]
+    else:
+        options = [ChartOption(id_, name.replace("_", " ").capitalize(), ""), *options]
+    drawable = []
+    for option in options:
+        try:
+            draw(data, option.id)
+        except AnalysisError:
+            continue
+        drawable.append(option)
+    return drawable
+
+
 # --- Builders: analysis result -> chart and its table ----------------------------------------
 
 
@@ -211,6 +268,8 @@ def _index_ranking(
         templates.index_ranking(result, data.check_countries(highlight)), render.index(result)
     )
 
+
+_SINCE = {"trend_lines", "change_arrows", "trend_grid"}  # the charts taking a baseline year
 
 _BUILDERS: dict[str, Callable[..., Drawing]] = {
     "ranked_bars": _ranking("ranked_bars"),

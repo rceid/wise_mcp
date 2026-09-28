@@ -1,13 +1,17 @@
 """Chart templates, checked on their Vega-Lite specs rather than pixels: each test asserts one
 thing the chart promises, such as the OECD line sitting at the OECD average."""
 
+import json
+import re
+
 import pytest
+import vl_convert
 from builders import make_data, obs, series
 
 from wise_mcp import analysis
 from wise_mcp.analysis import AnalysisError, WellbeingData
 from wise_mcp.catalog import Measure
-from wise_mcp.charts import export, templates
+from wise_mcp.charts import export, style, templates
 from wise_mcp.charts.style import SOURCE, STATUS
 
 LIFE_SATISFACTION = Measure("11_1", "higher", threshold=0.2, name="Life satisfaction")
@@ -228,3 +232,66 @@ def test_no_data_for_the_period_is_a_clear_error():
     data = make_data(rows, {"11_1": LIFE_SATISFACTION})
     with pytest.raises(AnalysisError, match="No country has data"):
         templates.change_arrows(analysis.trend(data, "11_1"))
+
+
+def colours(node) -> set[str]:
+    """Every hex colour named anywhere in a spec."""
+    found = set()
+    if isinstance(node, dict):
+        for value in node.values():
+            found |= colours(value)
+    elif isinstance(node, list):
+        for value in node:
+            found |= colours(value)
+    elif isinstance(node, str) and re.fullmatch(r"#[0-9a-f]{6}", node):
+        found.add(node)
+    return found
+
+
+class TestDarkTheme:
+    def test_dark_charts_use_only_dark_steps_and_fixed_status_colours(self, data):
+        chart = templates.change_arrows(analysis.trend(data, "11_1", since="2019"))
+        dark = export.spec(chart, "dark")
+        assert dark["config"]["background"] == style.DARK_SURFACE
+        light_only = set(style.DARK_MARKS) - set(style.DARK_MARKS.values())
+        assert not colours({k: v for k, v in dark.items() if k != "config"}) & light_only
+
+    def test_light_is_unchanged(self, data):
+        chart = templates.dot_plot(analysis.compare_countries(data, "11_1"))
+        assert export.spec(chart) == export.spec(chart, "light")
+        assert export.spec(chart)["config"] is style.CONFIG
+
+
+def test_charts_fit_the_claude_desktop_panel(data):
+    # Claude Desktop gives the panel 735px; less the page's padding, about 719px for the chart.
+    charts = [
+        templates.ranked_bars(analysis.compare_countries(data, "11_1")),
+        templates.trend_lines(analysis.trend(data, "11_1", ["FRA", "DEU", "MEX"], since="2019")),
+        templates.change_arrows(analysis.trend(data, "11_1", since="2019")),
+        templates.gap_dots(analysis.group_gaps(data, "10_2", "sex")),
+        templates.profile_scores(analysis.country_profile(data, "FRA")),
+        templates.trend_grid(analysis.country_trends(data, "FRA", since="2019")),
+    ]
+    for chart in charts:
+        svg = vl_convert.vegalite_to_svg(json.dumps(export.spec(chart)))
+        assert float(re.search(r'width="([\d.]+)"', svg).group(1)) <= 719
+
+
+def test_a_long_list_of_countries_without_data_is_wrapped():
+    values = {c: {2024: 7.0} for c in ["AUT", "BEL", "CAN", "CHE", "CZE", "DEU", "DNK", "ESP",
+              "EST", "FIN", "GBR", "GRC", "HUN", "IRL", "ISL", "ITA"]}  # fmt: skip
+    values["FRA"] = {2010: 6.0, 2024: 7.0}
+    data = make_data(series("11_1", values), {"11_1": LIFE_SATISFACTION})
+    spec = export.spec(templates.change_arrows(analysis.trend(data, "11_1")))
+    first = next(i for i, line in enumerate(subtitle(spec)) if "Not enough data" in line)
+    assert subtitle(spec)[first].count(",") == 13  # 14 countries, then a new line
+    assert subtitle(spec)[first + 1].count(",") == 1  # the last two
+
+
+def test_the_average_label_sits_where_there_is_room():
+    # Most values near the top: a label to the right of the average line would run off the chart.
+    rows = series("9_2", {"FRA": {2024: 99.0}, "DEU": {2024: 98.0}, "ITA": {2024: 97.0}})
+    data = make_data(rows, {"9_2": Measure("9_2", "lower")})
+    spec = export.spec(templates.ranked_bars(analysis.compare_countries(data, "9_2")))
+    text = next(u for u in units(spec) if mark(u) == "text" and "dx" in u["mark"])
+    assert text["mark"]["align"] == "right"

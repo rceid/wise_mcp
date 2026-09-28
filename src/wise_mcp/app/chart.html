@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How's Life? chart</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --line: #e1e0d9; --accent: #2a78d6;
+  }
+  :root[data-theme="dark"] {
+    --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --line: #2c2c2a; --accent: #3987e5;
+  }
+  html, body { margin: 0; background: var(--surface); color: var(--ink); }
+  body { padding: 8px; font: 13px var(--font-sans, system-ui, -apple-system, sans-serif); }
+  [role="tablist"] { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+  [role="tab"] {
+    font: inherit; color: var(--ink-2); background: none; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+  }
+  [role="tab"]:hover { color: var(--ink); }
+  [role="tab"][aria-selected="true"] { color: var(--ink); border-color: var(--accent); }
+  [role="tab"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #chart { min-height: 120px; transition: opacity 0.15s; }
+  #chart[aria-busy="true"] { opacity: 0.4; }
+  #message { color: var(--ink-2); padding: 16px 0; }
+</style>
+<!-- Vega, Vega-Lite and vega-embed, inlined: the panel works offline and needs no CSP domains.
+     vega-interpreter evaluates Vega expressions, because the host's CSP forbids eval. -->
+<script>/*VEGA*/</script>
+<script>/*VEGA_LITE*/</script>
+<script>/*VEGA_EMBED*/</script>
+<script>/*VEGA_INTERPRETER*/</script>
+</head>
+<body>
+<div role="tablist" aria-label="Charts for this question" id="tabs"></div>
+<div id="chart" aria-live="polite"><div id="message">Loading the chart…</div></div>
+<script>
+// The MCP Apps protocol (JSON-RPC 2.0 over postMessage with the host), written out by hand: it's
+// four messages, so no SDK. The server does every calculation; this page only draws what
+// the app-only tool chart_view returns.
+let nextId = 1;
+const pending = new Map();
+const handlers = {};
+
+window.addEventListener("message", (event) => {
+  const msg = event.data;
+  if (!msg || msg.jsonrpc !== "2.0") return;
+  if (msg.id !== undefined && !msg.method && pending.has(msg.id)) {
+    const { resolve, reject } = pending.get(msg.id);
+    pending.delete(msg.id);
+    msg.error ? reject(new Error(msg.error.message || "request failed")) : resolve(msg.result);
+  } else if (msg.method && handlers[msg.method]) {
+    handlers[msg.method](msg.params || {}, msg);
+  }
+});
+
+const request = (method, params) => new Promise((resolve, reject) => {
+  const id = nextId++;
+  pending.set(id, { resolve, reject });
+  window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+});
+const notify = (method, params) => window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+
+const state = { theme: "light", current: null, first: null, tabs: [], canUpdateContext: false };
+const views = new Map(); // "theme|id" -> chart_view result, so switching back is instant
+
+async function view(id) {
+  const key = `${state.theme}|${id}`;
+  if (!views.has(key)) {
+    const result = await request("tools/call", {
+      name: "chart_view", arguments: { chart_id: id, theme: state.theme },
+    });
+    const text = (result.content || []).find((c) => c.type === "text")?.text || "";
+    if (result.isError) throw new Error(text || "The chart couldn't be drawn.");
+    views.set(key, JSON.parse(text));
+  }
+  return views.get(key);
+}
+
+function renderTabs() {
+  const box = document.getElementById("tabs");
+  box.replaceChildren(...state.tabs.map((tab) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", String(tab.id === state.current));
+    button.tabIndex = tab.id === state.current ? 0 : -1;
+    button.textContent = tab.label;
+    button.title = tab.title;
+    button.addEventListener("click", () => show(tab.id));
+    return button;
+  }));
+  box.hidden = state.tabs.length < 2;
+}
+
+// Arrow keys move between tabs, as for any tab list.
+document.getElementById("tabs").addEventListener("keydown", (event) => {
+  const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+  if (!step) return;
+  const i = state.tabs.findIndex((tab) => tab.id === state.current);
+  const next = state.tabs[(i + step + state.tabs.length) % state.tabs.length];
+  show(next.id).then(() => document.querySelector('[aria-selected="true"]')?.focus());
+});
+
+async function show(id) {
+  const chart = document.getElementById("chart");
+  chart.setAttribute("aria-busy", "true");
+  try {
+    const v = await view(id);
+    const switched = state.current !== null && id !== state.current;
+    state.current = id;
+    // The tabs belong to the question, so they come from the first chart and then stay put
+    // (a change chart for every country would otherwise drop the "Over time" tab).
+    if (!state.tabs.length) state.tabs = v.tabs;
+    renderTabs();
+    await vegaEmbed(chart, v.spec, {
+      actions: false,
+      renderer: "svg",
+      tooltip: { theme: state.theme },
+      ast: true,
+      expr: vegaInterpreter.expressionInterpreter,
+    });
+    if (switched) tellClaude(v);
+  } catch (err) {
+    chart.innerHTML = "";
+    const message = document.createElement("div");
+    message.id = "message";
+    message.textContent = err.message;
+    chart.appendChild(message);
+  } finally {
+    chart.removeAttribute("aria-busy");
+  }
+}
+
+// When the user switches charts, Claude's next answer should be about what's on screen.
+function tellClaude(v) {
+  if (!state.canUpdateContext) return;
+  request("ui/update-model-context", {
+    content: [{
+      type: "text",
+      text: `The user switched the chart panel to "${v.title}" (chart id \`${v.id}\`). ` +
+        `Its data:\n\n${v.table}`,
+    }],
+  }).catch(() => {}); // context is a nicety: the chart still works without it
+}
+
+function applyTheme(theme) {
+  state.theme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = state.theme;
+}
+
+function applyHostFonts(styles) {
+  const font = styles?.variables?.["--font-sans"];
+  if (font) document.documentElement.style.setProperty("--font-sans", font);
+}
+
+handlers["ui/notifications/tool-input"] = ({ arguments: args }) => {
+  if (args?.chart_id && state.first === null) {
+    state.first = args.chart_id;
+    show(args.chart_id);
+  }
+};
+handlers["ui/notifications/tool-result"] = (result) => {
+  if (result.isError) {
+    const text = (result.content || []).find((c) => c.type === "text")?.text;
+    document.getElementById("chart").textContent = text || "The chart couldn't be drawn.";
+  }
+};
+handlers["ui/notifications/host-context-changed"] = (ctx) => {
+  applyHostFonts(ctx.styles);
+  if (ctx.theme && ctx.theme !== state.theme) {
+    applyTheme(ctx.theme);
+    if (state.current) show(state.current);
+  }
+};
+handlers["ui/resource-teardown"] = (_, msg) => {
+  window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, "*");
+};
+
+new ResizeObserver(() => {
+  notify("ui/notifications/size-changed", {
+    width: document.documentElement.scrollWidth,
+    height: document.documentElement.scrollHeight,
+  });
+}).observe(document.body);
+
+(async () => {
+  try {
+    const init = await request("ui/initialize", {
+      appInfo: { name: "wise-mcp-chart", version: "1.0.0" },
+      appCapabilities: { availableDisplayModes: ["inline"] },
+      protocolVersion: "2026-01-26",
+    });
+    applyTheme(init.hostContext?.theme);
+    applyHostFonts(init.hostContext?.styles);
+    state.canUpdateContext = Boolean(init.hostCapabilities?.updateModelContext);
+    notify("ui/notifications/initialized", {});
+  } catch (err) {
+    document.getElementById("chart").textContent = "This panel couldn't connect to the app.";
+  }
+})();
+</script>
+</body>
+</html>
