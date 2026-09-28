@@ -22,7 +22,7 @@ from pydantic import Field
 from wise_mcp import analysis, app, render
 from wise_mcp.analysis import AnalysisError, WellbeingData
 from wise_mcp.analysis.headlines import INDEX_NAME
-from wise_mcp.charts import catalog, export
+from wise_mcp.charts import catalog, custom, export
 from wise_mcp.sdmx import SdmxError
 from wise_mcp.store import DataStore
 
@@ -41,7 +41,8 @@ changes are "no clear change". Don't describe them as improvements.
 - Pass on the caveats the tools return, such as series breaks, estimates and differing years.
 - Only the 38 OECD members are covered.
 - Cite the source line at the end of each tool result.
-- When a chart would help, call suggest_charts, then show_chart with the chosen chart's id."""
+- When a chart would help, call suggest_charts, then show_chart with the chosen chart's id. Use \
+custom_chart only when no suggested chart fits, and tell the user it is a custom view."""
 
 # Opens show_chart's result when the chart is in the interactive panel, not in the result.
 PANEL_NOTE = (
@@ -257,6 +258,41 @@ def create_server(store: DataStore | None = None) -> MCPServer:
             if not previews:
                 raise AnalysisError("No chart fits: there isn't enough data for this question.")
             return ["\n".join(lines), *previews]
+
+        return answer(build)
+
+    @server.tool(annotations=READ_ONLY, structured_output=False)
+    def custom_chart(
+        measure: MeasureCode,
+        spec: Annotated[
+            dict[str, Any],
+            Field(
+                description="A Vega-Lite v6 spec (JSON) without data: mark, encoding, "
+                "transforms, title. The server adds the rows."
+            ),
+        ],  # fmt: skip
+        rows: Annotated[
+            custom.Rows,
+            Field(
+                description=f'"latest": one row per country ({custom.FIELDS["latest"]}). '
+                f'"series": every value since `since` ({custom.FIELDS["series"]}).'
+            ),
+        ] = "latest",  # fmt: skip
+        countries: Countries = None,
+        since: Annotated[str, Field(description='Baseline for rows="series"')] = "2010",
+    ) -> list[Any]:
+        """Draw a chart that none of the suggested ones covers, from a Vega-Lite spec you write.
+        Use it only when suggest_charts has nothing that fits. You write JSON, not code, and no
+        data: the server adds one measure's rows, the house style and a subtitle saying this is
+        a custom view. Returns the image and the rows as a table."""
+
+        def build(data: WellbeingData) -> list[Any]:
+            drawing = custom.custom_chart(data, measure, spec, rows, countries, since)
+            try:
+                image = export.png_from_spec(drawing.chart)
+            except ValueError as exc:  # vl-convert's message for a spec it can't render
+                raise AnalysisError(f"The spec couldn't be drawn: {str(exc)[:200]}") from exc
+            return [Image(data=image, format="png"), drawing.table]
 
         return answer(build)
 
