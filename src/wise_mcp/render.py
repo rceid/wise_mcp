@@ -92,6 +92,11 @@ def description(measure: dict[str, Any], coverage: dict[str, Any]) -> str:
         f"- Data: {coverage['countries']} OECD members, {coverage['first_year']}-"
         f"{coverage['last_year']}; breakdowns: {by}",
     ]
+    if measure["pooled"]:
+        lines.append(
+            "- Published as one value per period of up to three years (2008-10, 2011-13, ..., "
+            "2023-25), repeated for every year in it"
+        )
     if measure["note"]:
         lines.append(f"- Note: {measure['note']}")
     return join(heading(measure), "\n".join(lines))
@@ -110,12 +115,13 @@ def comparison(result: Comparison) -> str:
         ]
         for row in result.table.itertuples()
     ]
+    rank = f"Rank (of {average.countries})" if average else "Rank"
     return join(
         heading(result.measure),
         f"{average.label} average: {number(average.value)} (latest years {average.years})"
         if average
         else "",
-        table(["Rank", "Country", "Year", "Value", "vs OECD average", "Flag"], rows),
+        table([rank, "Country", "Year", "Value", "vs OECD average", "Flag"], rows),
         caveats(result.caveats, result.measure["note"]),
     )
 
@@ -180,9 +186,10 @@ def gaps(result: GroupGaps) -> str:
     )
     return join(
         heading(result.measure, f": gaps by {result.breakdown}"),
-        "How to read the ratios: each group's value relative to the population average, scored so "
-        "above 1 means better off. A ratio below 1 means the first group is worse off than the "
-        "second. Groups within 0.03 of parity show no clear difference (How's Life? 2024).",
+        "How to read the ratios: each group is first scored against the population average, "
+        "so that above 1 means better off than average. A ratio such as Female vs Male divides "
+        "the first group's score by the second's: below 1 means the first group is worse off. "
+        "Scores within 0.03 of parity show no clear difference (How's Life? 2024).",
         oecd_line,
         table(["Country", "Year", *[names[g] for g in groups], "Better off", *pair_names], rows),
         caveats(result.caveats, result.measure["note"]),
@@ -252,6 +259,7 @@ def index(result: Index) -> str:
     )
 
 
+# The same order as the chart legends (charts.style.STATUS).
 ASSESSMENTS = ["improving", "deteriorating", "no clear change", "no threshold", "insufficient data"]
 
 

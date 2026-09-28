@@ -32,6 +32,7 @@ from wise_mcp.charts.style import (
 # differ), with the country's name written at the end of each line.
 LINE_COLORS = [*CATEGORICAL, "#eda100"]
 MAX_LINES = len(LINE_COLORS)
+MIN_HEIGHT = 3 * ROW  # a chart of one or two rows would otherwise be a thin strip
 FLAG = "†"  # marks estimates, breaks and other flagged values in axis labels
 
 
@@ -85,6 +86,17 @@ def _country_labels(table: pd.DataFrame) -> pd.Series:
     return table["ref_area_label"] + " · " + table["time_period"].astype(str) + flags
 
 
+def _rank_labels(table: pd.DataFrame) -> pd.Series:
+    """ "10= France · 2023": the rank written in, "=" marking a tie, so a reader never counts
+    rows (tied countries sit on separate rows but share a rank)."""
+    labels = _country_labels(table)
+    if table["rank"].isna().all():
+        return labels
+    tied = table["rank"].duplicated(keep=False)
+    prefix = table["rank"].astype(str) + tied.map({True: "= ", False: ". "})
+    return prefix + labels
+
+
 def _flag_note(table: pd.DataFrame) -> str | None:
     if not _flagged(table).any():
         return None
@@ -109,7 +121,7 @@ def dot_plot(result: Comparison, highlight: list[str] | None = None) -> Any:
 
 def _ranking(result: Comparison, highlight: list[str] | None, mark: str) -> Any:
     measure, table, average = result.measure, result.table.copy(), result.oecd_average
-    table["label"] = _country_labels(table)
+    table["label"] = _rank_labels(table)
     table["highlight"] = table["ref_area"].isin(highlight) if highlight else True
     order = table["label"].tolist()  # already best first (or alphabetical if not comparable)
 
@@ -175,27 +187,39 @@ def trend_lines(result: Trend) -> Any:
             f"Line charts show up to {MAX_LINES} countries; use change_arrows for more."
         )
     series["break"] = series["obs_status"] == "B"
+    pooled = "period" in series
+    if not pooled:
+        series["period"] = series["time_period"].astype(int).astype(str)
     data = alt.Data(values=_records(series))
     color = alt.Color(
         "ref_area_label:N",
         scale=alt.Scale(domain=countries, range=LINE_COLORS[: len(countries)]),
         legend=alt.Legend(title=None) if len(countries) > 1 else None,
     )
-    x = alt.X(
-        "time_period:Q",
-        title=None,
-        scale=alt.Scale(nice=False),
-        axis=alt.Axis(format="d", tickMinStep=1, labelOverlap=True, labelFlush=False),
-    )
+    axis = alt.Axis(format="d", tickMinStep=1, labelOverlap=True, labelFlush=False)
+    if pooled:  # a tick at the middle of each period, labelled with the period ("2014–16")
+        ticks = series.drop_duplicates("period").set_index("time_period")["period"].sort_index()
+        lookup = ", ".join(f"'{year:g}': '{label}'" for year, label in ticks.items())
+        axis = alt.Axis(
+            values=ticks.index.tolist(), labelExpr=f"{{{lookup}}}[datum.value]", labelFlush=False
+        )
+    x = alt.X("time_period:Q", title=None, scale=alt.Scale(nice=False), axis=axis)
     y = alt.Y("obs_value:Q", title=measure["unit"] or None, scale=alt.Scale(zero=False))
     tooltip = [
         alt.Tooltip("ref_area_label:N", title="Country"),
-        alt.Tooltip("time_period:Q", title="Year", format="d"),
+        alt.Tooltip("period:N", title="Period" if pooled else "Year"),
         alt.Tooltip("obs_value:Q", title="Value", format=",.2f"),
         alt.Tooltip("obs_status_label:N", title="Status"),
     ]
     lines = alt.Chart(data).mark_line().encode(x=x, y=y, color=color)
-    points = alt.Chart(data).mark_point(opacity=0).encode(x=x, y=y, tooltip=tooltip)
+    # Dots mark the real values when there are few of them (pooled measures, or years missing),
+    # so a straight line across the gaps doesn't pass for yearly data.
+    gaps = series.groupby("ref_area_label")["time_period"].diff().gt(1).any()
+    points = (
+        alt.Chart(data)
+        .mark_point(opacity=1 if pooled or gaps else 0, size=40)
+        .encode(x=x, y=y, fill=color, tooltip=tooltip)
+    )
     breaks = (
         alt.Chart(data)
         .transform_filter(alt.datum["break"])
@@ -227,15 +251,24 @@ def trend_lines(result: Trend) -> Any:
             .encode(x=x, y=y, text="label:N"),
             *layers,
         ]
-        last = int(result.oecd_line["time_period"].max())
+        end = "period_end" if "period_end" in result.oecd_line else "time_period"
+        last = int(result.oecd_line[end].max())
         oecd_note = (
-            f"Dashed: OECD average over the {members} members with data in every year to {last}."
+            f"Dashed: OECD average over the {members} members with data in every year to {last}"
         )
+        # The table's OECD average needs only the baseline and latest years, so it often covers
+        # more members: say so, or the two figures look like a contradiction.
+        if result.oecd and result.oecd["countries"] != members:
+            oecd_note += f" (the table's average covers {result.oecd['countries']})"
+        oecd_note += "."
     has_breaks = bool(series["break"].any())
     return _titled(
         alt.layer(*layers).properties(width=WIDTH, height=280),
         measure["name"],
         _about(measure) + ".",
+        "One point per period (e.g. 2014–16): the OECD publishes a single value for each."
+        if pooled
+        else None,
         oecd_note,
         "◆ series break: the method changed, so the change across it may not be real."
         if has_breaks
@@ -355,7 +388,13 @@ def gap_dots(result: GroupGaps) -> Any:
     labels = [names[g] for g in groups]
     data = alt.Data(values=_records(rows[["label", "group", "obs_value"]]))
     y = alt.Y("label:N", sort=order, title=None, axis=alt.Axis(labelLimit=220))
-    x = alt.X("obs_value:Q", title=measure["unit"] or None, scale=alt.Scale(zero=False, padding=12))
+    # No domain padding: it adds ticks beyond the data whose labels run into their neighbours.
+    x = alt.X(
+        "obs_value:Q",
+        title=measure["unit"] or None,
+        scale=alt.Scale(zero=False, nice=True),
+        axis=alt.Axis(labelOverlap=True, tickCount=6),
+    )
     span = (
         alt.Chart(data)
         .mark_rule(color=CONTEXT, strokeWidth=2)
@@ -380,7 +419,7 @@ def gap_dots(result: GroupGaps) -> Any:
         )
     )
     return _titled(
-        alt.layer(span, dots).properties(width=WIDTH, height=ROW * len(order)),
+        alt.layer(span, dots).properties(width=WIDTH, height=max(ROW * len(order), MIN_HEIGHT)),
         f"{measure['name']}: gaps by {result.breakdown}",
         f"{_about(measure)}. Widest gaps first; each country's latest year with every group.",
     )
@@ -501,7 +540,7 @@ def trend_grid(result: CountryTrends) -> Any:
     )
     counts = [
         f"{kind.capitalize()} well-being: "
-        + ", ".join(f"{n} {a}" for a, n in sorted(counts.items(), key=lambda kv: -kv[1]))
+        + ", ".join(f"{counts[a]} {a}" for a in STATUS if counts.get(a))
         for kind, counts in result.summary.items()
     ]
     return _titled(

@@ -8,7 +8,7 @@ from wise_mcp import analysis
 from wise_mcp.analysis import AnalysisError, WellbeingData
 from wise_mcp.catalog import Measure
 from wise_mcp.charts import export, templates
-from wise_mcp.charts.style import SOURCE
+from wise_mcp.charts.style import SOURCE, STATUS
 
 LIFE_SATISFACTION = Measure("11_1", "higher", threshold=0.2, name="Life satisfaction")
 
@@ -43,6 +43,9 @@ def values(spec: dict, unit: dict) -> list[dict]:
     return spec["datasets"][data["name"]] if "name" in data else data["values"]
 
 
+values_of = values  # for tests where `values` is a local name
+
+
 def y_order(unit: dict) -> list[str]:
     return unit["encoding"]["y"]["sort"]
 
@@ -58,7 +61,7 @@ class TestRankings:
         bars, rule = units(spec)[0], next(u for u in units(spec) if mark(u) == "rule")
         assert values(spec, rule)[0]["x"] == pytest.approx(comparison.oecd_average.value)
         assert values(spec, rule)[0]["label"].startswith("OECD 3 average")
-        assert y_order(bars)[0].startswith("Mexico · 2021")  # the highest life satisfaction
+        assert y_order(bars)[0].startswith("1. Mexico · 2021")  # the highest life satisfaction
         assert bars["encoding"]["x"]["scale"]["zero"] is True  # bars always start at zero
 
     def test_dot_plot_zooms_to_the_data(self, data):
@@ -79,8 +82,16 @@ class TestRankings:
         rows = series("10_1", {"FRA": {2024: 1.0}, "DEU": {2024: 0.8}, "ITA": {2024: 0.5}})
         data = make_data(rows, {"10_1": Measure("10_1", "lower")})
         spec = export.spec(templates.ranked_bars(analysis.compare_countries(data, "10_1")))
-        assert y_order(units(spec)[0])[0].startswith("Country ITA")
+        assert y_order(units(spec)[0])[0].startswith("1. Country ITA")
         assert "lower is better" in subtitle(spec)[0]
+
+    def test_ranks_are_written_in_and_ties_marked(self):
+        rows = series("11_1", {"FRA": {2024: 7.0}, "AUS": {2024: 7.0}, "ITA": {2024: 6.0}})
+        data = make_data(rows, {"11_1": LIFE_SATISFACTION})
+        spec = export.spec(templates.dot_plot(analysis.compare_countries(data, "11_1")))
+        labels = [label.split(" · ")[0] for label in y_order(units(spec)[0])]
+        assert set(labels[:2]) == {"1= Country FRA", "1= Country AUS"}
+        assert labels[2] == "3. Country ITA"
 
     def test_a_non_zero_target_gets_its_own_line(self):
         rows = series("14_5", {"FRA": {2024: 37.0}, "MEX": {2024: 50.4}})
@@ -100,6 +111,27 @@ class TestTrends:
         oecd = next(u for u in units(spec) if u["mark"].get("strokeDash"))
         assert [row["time_period"] for row in values(spec, oecd)] == [2010, 2011, 2012]
         assert "5 members with data in every year to 2012" in " ".join(subtitle(spec))
+
+    def test_the_note_says_when_the_table_averages_more_members(self):
+        # MEX has only the baseline and latest years: in the table's average, not the line's.
+        values = {c: {2010: 7.0, 2020: 7.1, 2024: 7.2} for c in self.FIVE}
+        values["MEX"] = {2010: 6.0, 2024: 6.5}
+        data = make_data(series("11_1", values), {"11_1": LIFE_SATISFACTION})
+        spec = export.spec(templates.trend_lines(analysis.trend(data, "11_1", ["FRA"])))
+        assert "(the table's average covers 6)" in " ".join(subtitle(spec))
+
+    def test_pooled_measures_get_one_point_per_period(self):
+        trust = Measure("14_3", "higher", threshold=3, pooled=True)
+        values = {c: {2011: 40.0 + i, 2012: 40.0 + i, 2013: 40.0 + i, 2014: 30.0 + i,
+                      2015: 30.0 + i, 2016: 30.0 + i} for i, c in enumerate(self.FIVE)}  # fmt: skip
+        data = make_data(series("14_3", values), {"14_3": trust})
+        spec = export.spec(templates.trend_lines(analysis.trend(data, "14_3", ["FRA"])))
+        line = next(u for u in units(spec) if mark(u) == "line" and "color" in u["encoding"])
+        assert [(r["period"], r["time_period"]) for r in values_of(spec, line)] == [
+            ("2011–13", 2012), ("2014–16", 2015),
+        ]  # fmt: skip
+        assert any(line.startswith("One point per period") for line in subtitle(spec))
+        assert "every year to 2016" in " ".join(subtitle(spec))
 
     def test_at_most_four_lines(self):
         data = make_data(series("11_1", self.FIVE), {"11_1": LIFE_SATISFACTION})
@@ -148,6 +180,10 @@ class TestGapsAndCountries:
         widest = (gaps["F_vs_M"] - 1).abs().idxmax()
         assert order[1].startswith(widest)
 
+    def test_one_country_gap_chart_is_not_a_thin_strip(self, data):
+        spec = export.spec(templates.gap_dots(analysis.group_gaps(data, "10_2", "sex", ["FRA"])))
+        assert spec["height"] >= templates.MIN_HEIGHT
+
     def test_profile_has_current_and_future_panels(self, data):
         spec = export.spec(templates.profile_scores(analysis.country_profile(data, "FRA")))
         assert [panel["title"] for panel in spec["vconcat"]] == [
@@ -160,6 +196,13 @@ class TestGapsAndCountries:
         boxes = units(spec)[0]
         assert boxes["encoding"]["x"]["sort"] == ["France", "OECD average"]
         assert len(values(spec, boxes)) == 2 * len(result.indicators)
+
+    def test_trend_grid_counts_follow_the_legend_order(self, data):
+        spec = export.spec(templates.trend_grid(analysis.country_trends(data, "FRA", "2019")))
+        order = list(STATUS)
+        for line in subtitle(spec)[:2]:
+            named = [a for a in order if a in line]
+            assert sorted(named, key=line.index) == named
 
     def test_index_ranking_highlights(self, data):
         spec = export.spec(templates.index_ranking(analysis.wellbeing_index(data), ["MEX"]))
