@@ -1,8 +1,6 @@
-"""The interactive chart panel: an MCP App (a ui:// HTML page Claude Desktop shows in the chat).
-
-SPIKE for PR 5b: checks that Claude Desktop renders the panel, that the handshake and tool result
-reach it, that ~830 KB of inlined Vega runs under the default CSP, and that the panel can call the
-server itself.
+"""The interactive chart panel: an MCP App, a ui:// HTML page that Claude Desktop shows in the
+chat when show_chart is called. It draws the same Vega-Lite specs as the PNGs, with hover
+tooltips, tabs for the other charts suggested for the question, and Claude Desktop's theme.
 """
 
 from functools import cache

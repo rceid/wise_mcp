@@ -5,6 +5,7 @@ answers from the local cache, so tool calls don't spend the OECD API's rate limi
 Each tool is a thin wrapper: the analysis package does the work, render.py writes the Markdown.
 """
 
+import json
 import logging
 import sys
 from collections.abc import Callable
@@ -12,12 +13,13 @@ from importlib.metadata import version
 from typing import Annotated, Any, Literal
 
 from mcp.server import MCPServer
-from mcp.server.mcpserver import Image
+from mcp.server.apps import Apps, client_supports_apps
+from mcp.server.mcpserver import Context, Image
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from wise_mcp import analysis, render
+from wise_mcp import analysis, app, render
 from wise_mcp.analysis import AnalysisError, WellbeingData
 from wise_mcp.analysis.headlines import INDEX_NAME
 from wise_mcp.charts import catalog, export
@@ -78,26 +80,30 @@ class Source:
 
 def create_server(store: DataStore | None = None) -> MCPServer:
     source = Source(store or DataStore())
-    server = MCPServer(
-        "wise-mcp",
-        title="How's Life? well-being data (OECD)",
-        instructions=INSTRUCTIONS,
-        version=version("wise-mcp"),
-    )
 
-    def answer(build: Callable[[WellbeingData], Any]) -> Any:
+    def answer(build: Callable[[WellbeingData], Any], cite: bool = True) -> Any:
         """Run one analysis, returning Markdown or a list of text and images, with the source
-        at the end. Expected failures become ToolErrors, whose message Claude sees (any other
-        exception reaches it only as "Error executing tool")."""
+        at the end (unless `cite` is false). Expected failures become ToolErrors, whose message
+        Claude sees (any other exception reaches it only as "Error executing tool")."""
         try:
             result = build(source.data())
         except AnalysisError as exc:
             raise ToolError(str(exc)) from exc
         except SdmxError as exc:
             raise ToolError(f"The How's Life? data couldn't be loaded: {exc}") from exc
+        if not cite:
+            return result
         if isinstance(result, str):
             return render.join(result, source.citation())
         return [*result, source.citation()]
+
+    server = MCPServer(
+        "wise-mcp",
+        title="How's Life? well-being data (OECD)",
+        instructions=INSTRUCTIONS,
+        version=version("wise-mcp"),
+        extensions=[_chart_panel(source, answer)],
+    )
 
     @server.tool(annotations=READ_ONLY, structured_output=False)
     def find_measures(
@@ -248,21 +254,6 @@ def create_server(store: DataStore | None = None) -> MCPServer:
 
         return answer(build)
 
-    @server.tool(annotations=READ_ONLY, structured_output=False)
-    def show_chart(
-        chart_id: Annotated[
-            str, Field(description='An id from suggest_charts, e.g. "dot_plot?measure=11_1"')
-        ],
-    ) -> list[Any]:
-        """Draw one chart full size from an id that suggest_charts returned. Returns the image
-        and the same data as a table, so every value can be read without the picture."""
-
-        def build(data: WellbeingData) -> list[Any]:
-            drawing = catalog.draw(data, chart_id)
-            return [Image(data=export.png(drawing.chart), format="png"), drawing.table]
-
-        return answer(build)
-
     @server.prompt(title="Country well-being briefing")
     def country_briefing(
         country: Annotated[str, Field(description="Country name or ISO code, e.g. France")],
@@ -281,6 +272,66 @@ def create_server(store: DataStore | None = None) -> MCPServer:
         )
 
     return server
+
+
+def _chart_panel(source: Source, answer: Callable[..., Any]) -> Apps:
+    """show_chart as an MCP App: in clients that support it (Claude Desktop) the chart opens as
+    an interactive panel, and Claude gets only the table; elsewhere it's a PNG and the table.
+
+    The panel draws with the app-only tool chart_view, so the Vega-Lite spec (tens of KB of data)
+    never enters Claude's context."""
+    apps = Apps()
+
+    @apps.tool(resource_uri=app.URI, annotations=READ_ONLY, structured_output=False)
+    def show_chart(
+        chart_id: Annotated[
+            str, Field(description='An id from suggest_charts, e.g. "dot_plot?measure=11_1"')
+        ],
+        ctx: Context,
+    ) -> list[Any]:
+        """Draw one chart full size from an id that suggest_charts returned, with the same data
+        as a table so every value can be read without the picture. In Claude Desktop it opens as
+        an interactive panel: hover for values, tabs for the other suggested charts."""
+        interactive = client_supports_apps(ctx)
+
+        def build(data: WellbeingData) -> list[Any]:
+            drawing = catalog.draw(data, chart_id)
+            if interactive:
+                return [drawing.table]
+            return [Image(data=export.png(drawing.chart), format="png"), drawing.table]
+
+        return answer(build)
+
+    @apps.tool(
+        resource_uri=app.URI, visibility=["app"], annotations=READ_ONLY, structured_output=False
+    )
+    def chart_view(chart_id: str, theme: str = "light") -> str:
+        """For the chart panel: a chart's Vega-Lite spec (light or dark), its table, and the
+        other charts suggested for the same question, as JSON."""
+
+        def build(data: WellbeingData) -> str:
+            drawing = catalog.draw(data, chart_id)
+            options = catalog.related(data, chart_id)
+            titles = {o.id: o.title for o in options}
+            return json.dumps(
+                {
+                    "id": chart_id,
+                    "title": titles.get(chart_id, catalog.tab_label(chart_id)),
+                    "spec": export.spec(drawing.chart, "dark" if theme == "dark" else "light"),
+                    "table": render.join(drawing.table, source.citation()),
+                    "tabs": [
+                        {"id": o.id, "label": catalog.tab_label(o.id), "title": o.title}
+                        for o in options
+                    ],
+                }
+            )
+
+        return answer(build, cite=False)  # the table inside already ends with the source
+
+    apps.add_html_resource(
+        app.URI, app.chart_html(), title="How's Life? chart", prefers_border=True
+    )
+    return apps
 
 
 def main() -> None:

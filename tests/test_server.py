@@ -4,11 +4,14 @@ safe at night; 2018 onwards)."""
 
 import json
 import os
+import re
 import subprocess
 import sys
 
 import pytest
 from mcp import Client, StdioServerParameters
+from mcp.client import advertise
+from mcp.server.apps import APP_MIME_TYPE, EXTENSION_ID
 
 from wise_mcp.server import create_server
 from wise_mcp.store import DataStore
@@ -18,6 +21,7 @@ pytestmark = pytest.mark.anyio
 TOOLS = {
     "find_measures", "describe_measure", "compare_countries", "trend", "group_gaps",
     "country_profile", "country_trends", "better_life_36", "suggest_charts", "show_chart",
+    "chart_view",  # for the chart panel only (visibility: app)
 }  # fmt: skip
 
 
@@ -221,3 +225,48 @@ async def test_show_chart_returns_the_image_and_its_table(client):
 async def test_show_chart_explains_a_bad_id(client):
     error, text = await call(client, "show_chart", chart_id="pie_chart?measure=11_1")
     assert error and "Use suggest_charts" in text
+
+
+# --- The chart panel (MCP App) ---------------------------------------------------------------
+
+CHART = "trend_lines?measure=11_1&countries=FRA"
+
+
+@pytest.fixture
+async def desktop(store):
+    """A client that supports MCP Apps, as Claude Desktop does."""
+    apps = advertise(EXTENSION_ID, {"mimeTypes": [APP_MIME_TYPE]})
+    async with Client(create_server(store), extensions=[apps]) as client:
+        yield client
+
+
+async def test_show_chart_opens_the_panel(client):
+    tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+    assert tools["show_chart"].meta["ui"]["resourceUri"] == "ui://wise-mcp/chart.html"
+    assert tools["chart_view"].meta["ui"]["visibility"] == ["app"]  # hidden from Claude
+
+
+async def test_with_the_panel_claude_gets_the_table_but_no_image(desktop):
+    result = await desktop.call_tool("show_chart", {"chart_id": CHART})
+    assert [block.type for block in result.content] == ["text", "text"]  # table, source
+    assert "| France (FRA) |" in result.content[0].text
+
+
+async def test_chart_view_gives_the_panel_spec_table_and_tabs(desktop):
+    result = await desktop.call_tool("chart_view", {"chart_id": CHART, "theme": "dark"})
+    view = json.loads(result.content[0].text)
+    assert view["id"] == CHART
+    assert view["spec"]["config"]["background"] == "#1a1a19"
+    assert view["table"].rstrip().endswith("Methods: How's Life? 2024.")
+    tabs = [tab["id"] for tab in view["tabs"]]
+    assert CHART in tabs and len(tabs) > 1
+    assert all(tab["label"] for tab in view["tabs"])
+
+
+async def test_the_panel_is_self_contained(client):
+    (page,) = (await client.read_resource("ui://wise-mcp/chart.html")).contents
+    assert page.mime_type == APP_MIME_TYPE
+    # Vega is inlined: the host's default CSP allows no outside scripts, and the demo is offline.
+    assert not re.search(r"<script[^>]*\bsrc=", page.text)
+    assert "vegaInterpreter" in page.text  # expressions without eval, which the CSP forbids
+    assert page.text.count("<script") == page.text.count("</script>")
