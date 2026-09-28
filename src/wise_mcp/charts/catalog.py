@@ -169,6 +169,15 @@ def suggest(
                 f"{len(breakdowns)} breakdowns available).",
             )
         )
+    if data.measure(measure).comparable:
+        options.append(
+            ChartOption(
+                chart_id("tile_map", measure=measure, highlight=focus),
+                f"{described['name']}: map of every member against the OECD average",
+                "Every member as an equal-sized tile, roughly where it is on a map: blue above "
+                "the OECD average, red below, so regional patterns show at a glance.",
+            )
+        )
     options += ranking[1:]
     return options[:MAX_OPTIONS]
 
@@ -177,6 +186,7 @@ _TAB_LABELS = {
     "ranked_bars": "Ranking (bars)", "dot_plot": "Ranking (dots)", "trend_lines": "Over time",
     "change_arrows": "Change, all countries", "trend_grid": "Trends",
     "profile_scores": "Strengths and weaknesses", "index_ranking": "Overall ranking",
+    "tile_map": "Map",
 }  # fmt: skip
 
 
@@ -274,6 +284,7 @@ _SINCE = {"trend_lines", "change_arrows", "trend_grid"}  # the charts taking a b
 _BUILDERS: dict[str, Callable[..., Drawing]] = {
     "ranked_bars": _ranking("ranked_bars"),
     "dot_plot": _ranking("dot_plot"),
+    "tile_map": _ranking("tile_map"),
     "trend_lines": _trend_lines,
     "change_arrows": _change_arrows,
     "gap_dots": _gap_dots,

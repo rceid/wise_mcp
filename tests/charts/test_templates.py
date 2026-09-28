@@ -295,3 +295,36 @@ def test_the_average_label_sits_where_there_is_room():
     spec = export.spec(templates.ranked_bars(analysis.compare_countries(data, "9_2")))
     text = next(u for u in units(spec) if mark(u) == "text" and "dx" in u["mark"])
     assert text["mark"]["align"] == "right"
+
+
+class TestTileMap:
+    def test_every_member_has_its_own_tile(self):
+        assert set(templates.TILES) == style_members()
+        assert len(set(templates.TILES.values())) == len(templates.TILES)  # no two share a tile
+
+    def test_blue_means_better_whichever_direction_is_better(self):
+        # Homicides: lower is better, so the lowest rate is the most "better" tile.
+        rows = series("10_1", {"FRA": {2024: 1.0}, "DEU": {2024: 0.8}, "MEX": {2024: 25.0}})
+        data = make_data(rows, {"10_1": Measure("10_1", "lower")})
+        spec = export.spec(templates.tile_map(analysis.compare_countries(data, "10_1")))
+        cells = {r["ref_area"]: r for r in values(spec, units(spec)[0])}
+        assert cells["DEU"]["edge"] > cells["FRA"]["edge"] > 0 > cells["MEX"]["edge"]
+        assert cells["MEX"]["vs"] == "worse than average"
+
+    def test_members_without_data_are_shown_and_listed(self, data):
+        spec = export.spec(templates.tile_map(analysis.compare_countries(data, "11_1"), ["FRA"]))
+        cells = {r["ref_area"]: r for r in values(spec, units(spec)[0])}
+        assert not cells["JPN"]["has_data"] and cells["FRA"]["highlight"]
+        assert any(line.startswith("No data (dashed): ") for line in subtitle(spec))
+
+    def test_uncomparable_measures_have_no_map(self):
+        rows = series("12_4", {"FRA": {2016: 10.0}, "DEU": {2016: 5.0}})
+        data = make_data(rows, {"12_4": Measure("12_4", "higher", comparable=False)})
+        with pytest.raises(AnalysisError, match="can't be compared"):
+            templates.tile_map(analysis.compare_countries(data, "12_4"))
+
+
+def style_members() -> set[str]:
+    from wise_mcp.catalog import OECD_MEMBERS
+
+    return set(OECD_MEMBERS)

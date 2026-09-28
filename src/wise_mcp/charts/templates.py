@@ -13,18 +13,22 @@ import pandas as pd
 
 from wise_mcp.analysis import Comparison, CountryTrends, GroupGaps, Index, Profile, Trend
 from wise_mcp.analysis.data import BREAKDOWNS, AnalysisError
+from wise_mcp.catalog import OECD_MEMBERS
 from wise_mcp.charts.style import (
     BAR,
+    BETTER,
     CATEGORICAL,
     CONTEXT,
     INK,
     INK_MUTED,
     INK_SECONDARY,
+    NEUTRAL,
     ROW,
     SERIES,
     STATUS,
     SURFACE,
     WIDTH,
+    WORSE,
     subtitle,
 )
 
@@ -176,6 +180,131 @@ def _ranking(result: Comparison, highlight: list[str] | None, mark: str) -> Any:
         measure["name"],
         f"{_about(measure)}.",
         f"{ranked}, each country's latest year.",
+        _flag_note(table),
+    )
+
+
+# Each OECD member's tile (column, row): roughly where it sits on a map, every country the same
+# size so small ones (Luxembourg, Iceland) count as much as large ones. The Americas on the left,
+# Europe in the middle (Nordics on top, Mediterranean below), Asia-Pacific on the right.
+TILES: dict[str, tuple[int, int]] = {
+    "ISL": (4, 0), "NOR": (6, 0), "SWE": (7, 0), "FIN": (8, 0),
+    "CAN": (1, 1), "IRL": (4, 1), "GBR": (5, 1), "DNK": (6, 1), "EST": (8, 1),
+    "USA": (1, 2), "NLD": (5, 2), "DEU": (6, 2), "POL": (7, 2), "LVA": (8, 2),
+    "KOR": (10, 2), "JPN": (11, 2),
+    "MEX": (1, 3), "BEL": (4, 3), "LUX": (5, 3), "CZE": (6, 3), "SVK": (7, 3), "LTU": (8, 3),
+    "CRI": (1, 4), "FRA": (4, 4), "CHE": (5, 4), "AUT": (6, 4), "HUN": (7, 4),
+    "COL": (2, 5), "PRT": (3, 5), "ESP": (4, 5), "ITA": (5, 5), "SVN": (6, 5), "GRC": (7, 5),
+    "TUR": (8, 5), "AUS": (10, 5),
+    "CHL": (2, 6), "ISR": (8, 6), "NZL": (11, 6),
+}  # fmt: skip
+TILE = 46  # px per tile, gap included
+
+
+def tile_map(result: Comparison, highlight: list[str] | None = None) -> Any:
+    """Every OECD member as an equal-sized tile, roughly where it is on a map, coloured by how
+    far its latest value is above or below the OECD average: blue for better, red for worse,
+    whichever direction is better for the measure. Members without data are left grey."""
+    measure, table, average = result.measure, result.table, result.oecd_average
+    if average is None or table["rank"].isna().all():
+        raise AnalysisError(f"{measure['name']} can't be compared across countries.")
+    better_sign = {"higher": 1, "lower": -1}
+    rows = []
+    for ref_area, (col, row) in TILES.items():
+        match = table[table["ref_area"] == ref_area]
+        cell = {"ref_area": ref_area, "col": col, "row": row, "has_data": not match.empty,
+                "highlight": bool(highlight) and ref_area in highlight}  # fmt: skip
+        if not match.empty:
+            r = match.iloc[0]
+            if measure["better"] == "target":
+                # closer to the target than the average is better
+                edge = abs(average.value - measure["target"]) - abs(r.obs_value - measure["target"])
+            else:
+                edge = better_sign[measure["better"]] * (r.obs_value - average.value)
+            cell.update(
+                name=r.ref_area_label, year=int(r.time_period), value=float(r.obs_value),
+                rank=int(r["rank"]), edge=float(edge),
+                vs=f"{'better' if edge > 0 else 'worse' if edge < 0 else 'same'} than average",
+            )  # fmt: skip
+        rows.append(cell)
+    frame = pd.DataFrame(rows)
+    # Symmetric around the average, reaching the 90th percentile of distances: one or two outliers
+    # (Switzerland, Luxembourg) would otherwise wash every other tile out. Beyond it, full colour.
+    reach = float(frame["edge"].abs().quantile(0.9)) or 1.0
+    frame["strong"] = frame["edge"].abs() > 0.6 * reach  # dark tile: light text
+    data = alt.Data(values=_records(frame))
+    assert set(TILES) == OECD_MEMBERS  # a new member needs a tile
+
+    x = alt.X("col:O", axis=None, scale=alt.Scale(paddingInner=0.08))
+    y = alt.Y("row:O", axis=None, scale=alt.Scale(paddingInner=0.08))
+    size = {"width": TILE * 12, "height": TILE * 7}
+    tiles = (
+        alt.Chart(data)
+        .mark_rect(cornerRadius=4, stroke=INK, strokeOpacity=0)
+        .encode(
+            x=x,
+            y=y,
+            color=alt.condition(
+                "datum.has_data",
+                alt.Color(
+                    "edge:Q",
+                    # Lab blends grey straight into blue or red; the default (HCL) passes
+                    # through pink and green on the way.
+                    scale=alt.Scale(
+                        domain=[-reach, 0, reach],
+                        range=[WORSE, NEUTRAL, BETTER],
+                        interpolate="lab",
+                        clamp=True,
+                    ),  # fmt: skip
+                    legend=alt.Legend(
+                        title=None,
+                        orient="top",
+                        direction="horizontal",
+                        gradientLength=220,
+                        values=[-reach, 0, reach],
+                        labelExpr="datum.value < 0 ? 'Worse' : datum.value > 0 ? 'Better' : "
+                        "'OECD average'",
+                    ),
+                ),
+                alt.value(SURFACE),
+            ),
+            strokeOpacity=alt.condition("datum.highlight", alt.value(1), alt.value(0)),
+            strokeWidth=alt.condition("datum.highlight", alt.value(2.5), alt.value(0)),
+            tooltip=[
+                alt.Tooltip("name:N", title="Country"),
+                alt.Tooltip("year:Q", title="Year", format="d"),
+                alt.Tooltip("value:Q", title="Value", format=",.2f"),
+                alt.Tooltip("vs:N", title="vs OECD average"),
+                alt.Tooltip("rank:Q", title="Rank"),
+            ],
+        )  # fmt: skip
+    )
+    empty = (
+        alt.Chart(data)
+        .transform_filter("!datum.has_data")
+        .mark_rect(cornerRadius=4, fill=None, stroke=CONTEXT, strokeDash=[3, 2])
+        .encode(x=x, y=y)
+    )
+    labels = (
+        alt.Chart(data)
+        .mark_text(fontSize=11, fontWeight=600)
+        .encode(
+            x=x,
+            y=y,
+            text="ref_area:N",
+            color=alt.condition("datum.strong", alt.value(SURFACE), alt.value(INK)),
+            opacity=alt.condition("datum.has_data", alt.value(1), alt.value(0.45)),
+        )  # fmt: skip
+    )
+    missing = frame[~frame["has_data"]]["ref_area"].tolist()
+    return _titled(
+        alt.layer(tiles, empty, labels).properties(**size),
+        measure["name"],
+        f"{_about(measure)}.",
+        f"Colour: each country's latest value against the {average.label} average "
+        f"({average.value:,.2f}).",
+        "Blue is better, red is worse, whichever direction is better for this measure.",
+        f"No data (dashed): {', '.join(missing)}" if missing else None,
         _flag_note(table),
     )
 

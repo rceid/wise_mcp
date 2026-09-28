@@ -81,8 +81,17 @@ CONFIG: dict[str, Any] = {
     "line": {"strokeWidth": 2, "strokeCap": "round", "strokeJoin": "round"},
     "point": {"size": 80, "filled": True, "stroke": SURFACE, "strokeWidth": 2, "opacity": 1},
     "bar": {"cornerRadiusEnd": 4},
+    # The reference palette's eight slots in their fixed order, for custom charts (templates set
+    # their colours explicitly).
+    "range": {"category": [*CATEGORICAL, "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]},
 }
 
+
+# Diverging pair (for "better or worse than the OECD average"): blue <-> red with a grey midpoint,
+# as the reference palette specifies. Blue always means better, whichever direction is better.
+BETTER = SERIES
+WORSE = "#e34948"  # categorical red, not the reserved status red
+NEUTRAL = "#f0efec"
 
 # --- Dark mode (the interactive panel follows Claude Desktop's theme; PNGs stay light) ---------
 # Each colour's dark step from the same validated palette, not an automatic inversion. Series:
@@ -101,6 +110,8 @@ DARK_MARKS: dict[str, str] = {
     "#eda100": "#c98500",  # fourth line colour
     CONTEXT: "#4a4945",  # also "no threshold"
     STATUS["insufficient data"][0]: "#383835",
+    WORSE: "#e66767",
+    NEUTRAL: "#383835",
 }
 DARK_CHROME = {
     "surface": DARK_SURFACE, "ink": "#ffffff", "secondary": "#c3c2b7", "muted": INK_MUTED,
@@ -128,6 +139,18 @@ def config(theme: str = "light") -> dict[str, Any]:
         "legend": {**CONFIG["legend"], "labelColor": c["secondary"]},
         "text": {**CONFIG["text"], "color": c["secondary"]},
         "point": {**CONFIG["point"], "stroke": c["surface"]},
+        "range": {
+            "category": [
+                "#3987e5",
+                "#d95926",
+                "#199e70",
+                "#c98500",
+                "#d55181",
+                "#008300",
+                "#9085e9",
+                "#e66767",
+            ]
+        },  # fmt: skip
     }
 
 
