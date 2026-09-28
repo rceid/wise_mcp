@@ -43,6 +43,12 @@ changes are "no clear change". Don't describe them as improvements.
 - Cite the source line at the end of each tool result.
 - When a chart would help, call suggest_charts, then show_chart with the chosen chart's id."""
 
+# Opens show_chart's result when the chart is in the interactive panel, not in the result.
+PANEL_NOTE = (
+    "The chart is shown to the user as an interactive panel (hover for values, tabs for the "
+    "other suggested charts), so no image comes with this result. Its data:"
+)
+
 READ_ONLY = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False)
 
 MeasureCode = Annotated[
@@ -297,7 +303,8 @@ def _chart_panel(source: Source, answer: Callable[..., Any]) -> Apps:
         def build(data: WellbeingData) -> list[Any]:
             drawing = catalog.draw(data, chart_id)
             if interactive:
-                return [drawing.table]
+                # Without this, Claude sees no image and reports the chart as missing.
+                return [PANEL_NOTE, drawing.table]
             return [Image(data=export.png(drawing.chart), format="png"), drawing.table]
 
         return answer(build)

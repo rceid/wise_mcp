@@ -248,8 +248,9 @@ async def test_show_chart_opens_the_panel(client):
 
 async def test_with_the_panel_claude_gets_the_table_but_no_image(desktop):
     result = await desktop.call_tool("show_chart", {"chart_id": CHART})
-    assert [block.type for block in result.content] == ["text", "text"]  # table, source
-    assert "| France (FRA) |" in result.content[0].text
+    assert [block.type for block in result.content] == ["text"] * 3  # note, table, source
+    assert "interactive panel" in result.content[0].text  # or Claude reports a missing image
+    assert "| France (FRA) |" in result.content[1].text
 
 
 async def test_chart_view_gives_the_panel_spec_table_and_tabs(desktop):
