@@ -12,7 +12,13 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness
+from wise_mcp.analysis.data import (
+    AnalysisError,
+    WellbeingData,
+    goodness,
+    periods,
+    pooled_caveat,
+)
 from wise_mcp.catalog import Measure
 
 Assessment = Literal[
@@ -61,7 +67,8 @@ class Trend:
     measure: dict[str, Any]
     period: str
     changes: pd.DataFrame  # one row per country: baseline, end, change, assessment
-    series: pd.DataFrame  # every value from the start of the period on, for line charts
+    series: pd.DataFrame  # every value from the start of the period on, for line charts; one row
+    # per period (with `period`, e.g. "2014–16") for pooled measures
     oecd: dict[str, Any] | None  # the same assessment for the OECD average
     oecd_line: pd.DataFrame  # the OECD average in each year shown, for charts (may be empty)
     caveats: list[str]
@@ -99,12 +106,27 @@ def trend(
     changes = data.with_labels(changes_by_country(measure, series, period))
     oecd = oecd_change(measure, changes)
     # Charts show every value from the start of the baseline window on, whether or not a
-    # country's change can be assessed.
-    window = series[series["time_period"] >= period.baseline_from]
+    # country's change can be assessed. A pooled measure shows whole periods, so the window
+    # reaches back to the start of the period holding the first year (2008 for 2008-10).
+    first_year = period.baseline_from
+    if measure.pooled:
+        pooled = periods(series)
+        first_year = int(pooled[pooled["period_end"] >= first_year]["period_start"].min())
+    window = series[series["time_period"] >= first_year]
     if countries is not None:
         changes = changes[changes["ref_area"].isin(countries)]
         window = window[window["ref_area"].isin(countries)]
     oecd_line = oecd_trendline(series, sorted(window["time_period"].unique()))
+    if measure.pooled:
+        window = periods(window)
+        oecd_line = periods(oecd_line, by=None) if not oecd_line.empty else oecd_line
+
+    caveats = _caveats(measure, changes)
+    assessed = changes[changes["end_year"].notna()]
+    if measure.pooled and not assessed.empty:
+        row = assessed.iloc[0]
+        years = [int(row["start_year"]), int(row["end_year"])]
+        caveats.append(pooled_caveat([data.name(code)], series, row["ref_area"], years))
 
     return Trend(
         measure=data.describe(code),
@@ -113,7 +135,7 @@ def trend(
         series=data.with_labels(window.reset_index(drop=True)),
         oecd=oecd,
         oecd_line=oecd_line,
-        caveats=_caveats(measure, changes),
+        caveats=caveats,
     )
 
 

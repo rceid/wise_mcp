@@ -46,6 +46,7 @@ class Measure:
     unit: str | None = None
     unit_label: str | None = None  # overrides a wrong OECD unit label
     comparable: bool = True
+    pooled: bool = False  # one value per period of up to three years, repeated for each year
     note: str | None = None
 
     @property
@@ -98,6 +99,8 @@ def _parse_entry(code: object, entry: object) -> Measure:
         raise ValueError(f"{code}: threshold must be a number of at least 0")
     if not isinstance(measure.comparable, bool):
         raise ValueError(f"{code}: comparable must be true or false")
+    if not isinstance(measure.pooled, bool):
+        raise ValueError(f"{code}: pooled must be true or false")
     if measure.unit_label is not None and not isinstance(measure.unit_label, str):
         raise ValueError(f"{code}: unit_label must be text")
     return measure

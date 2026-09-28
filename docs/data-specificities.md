@@ -28,6 +28,11 @@ Each item gives **what**, a real **example**, and **what `wise_mcp` does**.
 - **Example:** life satisfaction since 2010 can be assessed for 29 members; the other 9 lack a value
   around 2010 or after 2019.
 - **`wise_mcp`:** the OECD change over time uses only members with both a baseline and an end value.
+  The trend line needs members with every year, so it often covers fewer, and the chart note
+  gives both counts ("24 members with data in every year to 2025 (the table's average covers
+  28)"). The profile uses latest values after 2019, as the report does, so its averages can
+  differ slightly from `compare_countries`, which uses each member's latest value from any year.
+  The profile says so too.
 
 ### The newest years have fewer countries, so trend lines stop early
 
@@ -151,6 +156,25 @@ Each item gives **what**, a real **example**, and **what `wise_mcp` does**.
 - **Example:** Canada's and Germany's life satisfaction series have breaks between 2010 and now, so
   part of their change may come from a change of method.
 - **`wise_mcp`:** flagged values are listed in comparisons, and trends warn about breaks.
+
+### Six survey measures repeat one value for every year of a period
+
+- **What:** trust in government, social support, feeling safe at night, negative affect, pain and
+  volunteering (and the `_DEP` versions of the first two) are published as one value per period:
+  2006–07, 2008–10, 2011–13, 2014–16, 2017–19, 2020–22 and 2023–25. That value is repeated in
+  every year of the period, with the normal status flag, so nothing in the data marks it. About
+  65% of their year-to-year changes are exactly zero, and the periods are the same for every
+  country. This fits survey years being pooled for bigger samples, but that still needs checking
+  against the How's Life? methods notes.
+- **Example:** France's trust in government reads 44.29 for 2008, 2009 and 2010, then 29.20 for
+  2014, 2015 and 2016. A yearly line chart draws flat steps. "Latest year 2025" looks fresher
+  than it is, because 2024 and 2025 repeat 2023. "Since 2010" really compares the 2008–10 period
+  with 2023–25.
+- **`wise_mcp`:** `pooled: true` in `measures.yaml` (hand-set, because extreme-temperature
+  exposure and marine protected areas also repeat values, but because they change slowly, not
+  because they're pooled). Line charts show one dot per period, and the axis is labelled with
+  periods. Trends, comparisons, profiles and `describe_measure` say which period a year stands
+  for. Assessments still compare the years the report's rules pick, so they follow the report.
 
 ### Some indicators stopped years ago
 

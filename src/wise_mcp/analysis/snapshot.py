@@ -5,7 +5,7 @@ from typing import Any
 
 import pandas as pd
 
-from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness
+from wise_mcp.analysis.data import AnalysisError, WellbeingData, goodness, pooled_caveat
 from wise_mcp.catalog import OECD_MEMBERS, Measure
 
 # Flag a measure as dated when its newest data are this many years older than the newest data in
@@ -67,27 +67,29 @@ def oecd_average(table: pd.DataFrame) -> OecdAverage | None:
 def compare_countries(
     data: WellbeingData, code: str, countries: list[str] | None = None
 ) -> Comparison:
-    """Rank countries on one measure using each one's latest value, best first. The OECD average
-    always covers every member with data, even when only a few countries are compared."""
+    """Rank countries on one measure using each one's latest value, best first. Ranks and the
+    OECD average always cover every member with data, even when only a few countries are
+    compared: France is 10th of 38, not 1st of the countries asked about."""
     measure = data.measure(code)
     countries = data.check_countries(countries)
     everyone = latest(data, code)
     average = oecd_average(everyone)
 
-    table = everyone if countries is None else everyone[everyone["ref_area"].isin(countries)]
-    if table.empty:
-        raise AnalysisError(f"No data for {data.name(code)} ({code}) in {countries}.")
-    score = goodness(measure, table["obs_value"])
-    table = table.assign(
+    score = goodness(measure, everyone["obs_value"])
+    table = everyone.assign(
         rank=score.rank(ascending=False, method="min").astype("Int64")
         if measure.comparable
-        else pd.array([pd.NA] * len(table), dtype="Int64"),
+        else pd.array([pd.NA] * len(everyone), dtype="Int64"),
         better_than_oecd=(score > goodness(measure, average.value) if average else pd.NA),
     )
     if measure.comparable:
         table = table.loc[score.sort_values(ascending=False).index]
     else:
         table = table.sort_values("ref_area_label")
+    if countries is not None:
+        table = table[table["ref_area"].isin(countries)]
+    if table.empty:
+        raise AnalysisError(f"No data for {data.name(code)} ({code}) in {countries}.")
     table = table.reset_index(drop=True)
 
     return Comparison(
@@ -121,6 +123,15 @@ def snapshot_caveats(data: WellbeingData, measure: Measure, table: pd.DataFrame)
         )
         more = f" and {len(flagged) - 6} more" if len(flagged) > 6 else ""
         caveats.append(f"Flagged values: {listed}{more}.")
+
+    if measure.pooled:
+        row = table.iloc[0]
+        caveats.append(
+            pooled_caveat(
+                [data.name(measure.code)], data.series(measure.code), row["ref_area"],
+                [int(row["time_period"])],
+            )
+        )  # fmt: skip
 
     if not measure.comparable:
         caveats.append(

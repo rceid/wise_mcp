@@ -112,3 +112,31 @@ def test_no_threshold_is_explained():
     result = trend(data, "6_2")
     assert result.changes.loc[0, "assessment"] == "no threshold"
     assert "no fixed threshold" in result.caveats[0] and "PISA" in result.caveats[0]
+
+
+class TestPooledMeasures:
+    TRUST = Measure("14_3", "higher", threshold=3, pooled=True)
+    VALUES = {
+        c: {2008: 44 + i, 2009: 44 + i, 2010: 44 + i, 2011: 40 + i, 2012: 40 + i, 2013: 40 + i,
+            2023: 37 + i, 2024: 37 + i, 2025: 37 + i}
+        for i, c in enumerate(["FRA", "DEU", "ITA", "ESP", "NLD"])
+    }  # fmt: skip
+
+    def result(self):
+        data = make_data(series("14_3", self.VALUES), {"14_3": self.TRUST})
+        return trend(data, "14_3", ["FRA"])
+
+    def test_charts_get_one_row_per_whole_period(self):
+        result = self.result()
+        assert result.series["period"].tolist() == ["2008–10", "2011–13", "2023–25"]
+        assert result.oecd_line["period"].tolist() == ["2008–10", "2011–13", "2023–25"]
+
+    def test_the_assessment_is_unchanged_and_the_periods_are_explained(self):
+        result = self.result()
+        row = result.changes.set_index("ref_area").loc["FRA"]
+        assert (row["start_year"], row["end_year"], row["assessment"]) == (
+            2010, 2025, "deteriorating",
+        )  # fmt: skip
+        assert any(
+            "2010 stands for 2008–10 and 2025 stands for 2023–25" in c for c in result.caveats
+        )
