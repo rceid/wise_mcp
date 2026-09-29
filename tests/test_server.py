@@ -22,6 +22,7 @@ TOOLS = {
     "find_measures", "describe_measure", "compare_countries", "trend", "group_gaps",
     "country_profile", "country_trends", "better_life_36", "suggest_charts", "show_chart",
     "chart_view",  # for the chart panel only (visibility: app)
+    "custom_chart",
 }  # fmt: skip
 
 

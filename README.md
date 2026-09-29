@@ -1,5 +1,12 @@
 # wise_mcp
-A prototype MCP server to query and interact with the OECD's `How's Life?` well-being database directly
+A prototype MCP server to query and interact with the OECD's `How's Life?` well-being database directly.
+
+It isn't a general OECD data wrapper: it applies the How's Life? 2024 method to every answer.
+OECD averages cover members only, and say how many. "Improving" means past the report's
+threshold. Each value carries its year and flags. The data's quirks are handled, and listed in
+[docs/data-specificities.md](docs/data-specificities.md). [evals/results.md](evals/results.md)
+shows what that changes: 20 questions answered naively from the raw data and by wise_mcp,
+checked against the report's published figures where it gives them.
 
 ## Use it in Claude Desktop
 
@@ -33,6 +40,7 @@ widest?"*. The **Country well-being briefing** prompt writes a How's Life?-style
 | `better_life_36` | Overall well-being score, with optional weights per dimension |
 | `suggest_charts` | Up to four charts that fit a question, each with a preview |
 | `show_chart` | One chart full size, with its data as a table. In Claude Desktop, an interactive panel |
+| `custom_chart` | A chart no template covers, from a Vega-Lite spec Claude writes (labelled as custom) |
 
 All tools are read-only and answer from the local cache, so they never spend the OECD API's
 rate limit.
@@ -42,6 +50,41 @@ In Claude Desktop, `show_chart` opens the chart as an interactive panel (an
 and switch between the charts suggested for the question with tabs. The panel follows Desktop's
 light or dark theme, and tells Claude which chart is on screen. Other clients get a PNG. The
 panel runs offline: Vega is bundled in `src/wise_mcp/app/vendor`.
+
+Chart templates: ranked bars or dots, trend lines, change arrows (every member), group gaps, a
+tile grid map (every member against the OECD average), a country's trend grid and profile, and
+the overall ranking. Each draws the method in: every value's year, flagged values, the OECD
+average with its member count, which direction is better.
+
+### A five-minute demo
+
+1. *"How is France doing on well-being?"*: `country_trends` classes all 36 headline
+   indicators in one call.
+2. *"Chart trust in government in France and Germany"*: the interactive panel. Hover a point.
+   Note the pooled periods (2014–16) and the dashed OECD average.
+3. Switch the panel to **Change, all countries**, then ask *"which country improved most?"*.
+   Claude answers about the chart on screen.
+4. *"Show a map of homicide rates"*: the tile map. Lower is better, so the high rates show red.
+5. *"What's the OECD average life expectancy?"*: then open `evals/results.md` to show that the
+   naive route through the raw data gets it wrong, and the report's published figure.
+
+## Evals
+
+```bash
+uv run python -m evals.run    # rewrite evals/results.md from the local cache
+```
+
+[evals/results.md](evals/results.md) compares a naive pandas analysis of the raw data with
+wise_mcp on 20 questions, and with How's Life? 2024's published figures where there are some.
+[evals/desktop-checklist.md](evals/desktop-checklist.md) is the same list for checking Claude's
+answers by hand in Claude Desktop.
+
+## Future work
+
+- Controls in the chart panel to change countries and baseline year
+- The report's rule for whether a gap between groups is widening or narrowing
+- Bulgaria, when it joins the OECD (expected around the end of 2026)
+- Evals with Claude answering from the raw data vs the MCP tools, graded automatically
 
 ## Development
 

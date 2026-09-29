@@ -35,6 +35,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]  # so tests can import the evals package at the repo root
 # Live tests call the real OECD API and spend its ~60 requests/hour budget, so they only
 # run when asked for explicitly: `uv run pytest -m live`.
 addopts = "-m 'not live'"

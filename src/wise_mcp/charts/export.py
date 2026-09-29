@@ -32,4 +32,9 @@ def _recolour(node: Any) -> Any:
 
 
 def png(chart: Any, scale: float = FULL_SCALE) -> bytes:
-    return vl_convert.vegalite_to_png(json.dumps(spec(chart)), scale=scale)
+    return png_from_spec(spec(chart), scale)
+
+
+def png_from_spec(vega_lite: dict[str, Any], scale: float = FULL_SCALE) -> bytes:
+    """Render a finished spec. No network access: every chart carries its data inline."""
+    return vl_convert.vegalite_to_png(json.dumps(vega_lite), scale=scale, allowed_base_urls=[])

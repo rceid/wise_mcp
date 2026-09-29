@@ -272,6 +272,11 @@ to the data itself.
 - "Better Life 36" is the working name for the overall score: Better Life Index-style weights over
   the How's Life? headline indicators, kept as two scores like the report (current: 24 indicators;
   future: 12). The Better Life Index itself uses a different set of 24 indicators.
+- The tile map colours each member by its distance from the OECD average, capped at the 90th
+  percentile of distances, so one or two outliers (Switzerland and Luxembourg on trust in
+  government) don't wash out every other tile.
+- Custom charts are allowed but labelled: Claude writes the spec, the server supplies the data,
+  and the subtitle says it isn't a standard view.
 - Not built yet: the report's rule for whether a gap between groups is widening or narrowing
   (a change of at least 0.01 in the ratio).
 

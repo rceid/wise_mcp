@@ -53,7 +53,7 @@ class TestSuggestions:
         rows = series("10_1", {"FRA": {2024: 0.8}, "USA": {2024: 6.0}, "MEX": {2024: 25.0}})
         data = make_data(rows, {"10_1": Measure("10_1", "lower")})
         options = catalog.suggest(data, measure="10_1")
-        assert names(options) == ["ranked_bars", "change_arrows", "dot_plot"]
+        assert names(options) == ["ranked_bars", "change_arrows", "tile_map", "dot_plot"]
         assert options[-1].why.startswith("Alternative view")
 
     def test_a_few_countries_get_a_line_chart(self, data):
