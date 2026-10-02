@@ -81,9 +81,9 @@ answers by hand in Claude Desktop.
 
 ## R charts
 
-[r/](r/) has two ggplot2 charts drawn from the same data: life satisfaction as a circular
-barplot grouped by region, and an animated chart of household income against life expectancy,
-2004-2023.
+[r/](r/) has two ggplot2 charts drawn from the same data, each also interactive: trust in
+national government as a circular barplot grouped by region (ggiraph), and household income
+against life expectancy, 2004-2023, as an animated GIF and a playable plotly chart.
 
 ## Future work
 

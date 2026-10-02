@@ -6,8 +6,9 @@ method: OECD members only, national totals only.
     uv run python r/export_data.py
 
 Writes:
-    data/life_satisfaction.csv       each member's latest life satisfaction (circular barplot)
+    data/trust_government.csv        latest trust in national government (circular barplot)
     data/income_life_expectancy.csv  household income and life expectancy by year (animation)
+    data/oecd_averages.csv           each measure's OECD average, as How's Life? reports it
 """
 
 from pathlib import Path
@@ -28,16 +29,26 @@ def country(code: str) -> str:
     return data.label("ref_area", code)
 
 
-# Life satisfaction (11_1, 0-10 scale): each member's latest year
-satisfaction = compare_countries(data, "11_1").table
-satisfaction = satisfaction.rename(
-    columns={"ref_area": "iso3", "ref_area_label": "country", "time_period": "year",
-             "obs_value": "value", "obs_status_label": "status"}
-)[["iso3", "country", "year", "value", "status"]]  # fmt: skip
-satisfaction = satisfaction[~satisfaction["iso3"].isin(EXCLUDE)]
-satisfaction["value"] = satisfaction["value"].round(3)
-satisfaction.to_csv(DATA / "life_satisfaction.csv", index=False)
-print(f"life satisfaction: {len(satisfaction)} countries")
+# Each member's latest value, and the OECD average over every member with data
+LATEST = {
+    "trust_government": "14_3",  # trust in national government, % of people aged 15+
+}
+averages = []
+for name, code in LATEST.items():
+    result = compare_countries(data, code)
+    table = result.table.rename(
+        columns={"ref_area": "iso3", "ref_area_label": "country", "time_period": "year",
+                 "obs_value": "value", "obs_status_label": "status"}
+    )[["iso3", "country", "year", "value", "status"]]  # fmt: skip
+    table = table[~table["iso3"].isin(EXCLUDE)]
+    table["value"] = table["value"].round(3)
+    table.to_csv(DATA / f"{name}.csv", index=False)
+    average = result.oecd_average
+    averages.append(
+        {"measure": name, "value": round(average.value, 3), "countries": average.countries}
+    )
+    print(f"{name}: {len(table)} countries, OECD average {average.value:.2f} ({average.countries})")
+pd.DataFrame(averages).to_csv(DATA / "oecd_averages.csv", index=False)
 
 
 # Household income (1_1, USD per person, PPP) and life expectancy (5_1, years), by year

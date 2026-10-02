@@ -1,0 +1,38 @@
+iso3,country,year,value,status
+CHE,Switzerland,2025,80.991,Normal value
+LUX,Luxembourg,2025,80.666,Normal value
+FIN,Finland,2025,69.267,Normal value
+NOR,Norway,2025,59.621,Normal value
+IRL,Ireland,2025,58.529,Normal value
+MEX,Mexico,2025,56.088,Normal value
+DNK,Denmark,2025,55.589,Normal value
+DEU,Germany,2025,51.389,Normal value
+SWE,Sweden,2025,51.157,Normal value
+CAN,Canada,2025,50.913,Normal value
+ISL,Iceland,2025,50.897,Normal value
+BEL,Belgium,2025,49.533,Normal value
+NLD,Netherlands,2025,49.274,Normal value
+NZL,New Zealand,2025,49.026,Normal value
+CRI,Costa Rica,2025,49.013,Normal value
+AUS,Australia,2025,48.724,Normal value
+AUT,Austria,2025,46.541,Normal value
+POL,Poland,2025,46.022,Normal value
+PRT,Portugal,2025,44.328,Normal value
+EST,Estonia,2025,40.888,Normal value
+LTU,Lithuania,2025,40.038,Normal value
+TUR,Türkiye,2025,39.84,Normal value
+SVN,Slovenia,2025,38.55,Normal value
+ESP,Spain,2025,38.544,Normal value
+FRA,France,2025,37.334,Normal value
+CZE,Czechia,2025,36.595,Normal value
+ITA,Italy,2025,36.55,Normal value
+GBR,United Kingdom,2025,34.217,Normal value
+KOR,Korea,2025,33.942,Normal value
+HUN,Hungary,2025,33.91,Normal value
+CHL,Chile,2025,33.493,Normal value
+JPN,Japan,2025,32.149,Normal value
+SVK,Slovak Republic,2025,32.085,Normal value
+LVA,Latvia,2025,30.956,Normal value
+USA,United States,2025,29.438,Normal value
+COL,Colombia,2025,28.72,Normal value
+GRC,Greece,2025,27.316,Normal value

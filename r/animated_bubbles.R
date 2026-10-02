@@ -26,16 +26,16 @@ panel <- read_csv(here("data", "income_life_expectancy.csv"), show_col_types = F
 
 first_year <- min(panel$year)
 last_year <- max(panel$year)
-frames_per_year <- 6
-end_pause <- 24 # frames held on the last year
+frames_per_year <- 10 # at 20 fps: half a second per year
+end_pause <- 40 # frames held on the last year (2 seconds)
 
 # ---- Interpolation ----------------------------------------------------------
-# tweenr::tween_elements moves each country (id) through its own years (time), easing between
-# them; a country missing a year simply glides between the years it has. Income is tweened on
+# tweenr::tween_elements moves each country (id) through its own years (time) at a steady
+# pace, so the dots glide through the years without stopping at each one; a country missing a year simply glides between the years it has. Income is tweened on
 # the log scale it's drawn on.
 
 tweened <- panel |>
-  transmute(year, iso3, country, region, log_income, life_expectancy, ease = "cubic-in-out") |>
+  transmute(year, iso3, country, region, log_income, life_expectancy, ease = "linear") |>
   tween_elements("year", "iso3", "ease",
                  nframes = (last_year - first_year) * frames_per_year + 1) |>
   as_tibble() |>
@@ -120,7 +120,7 @@ for (theme in names(palettes)) {
 
   gif <- here("output", paste0("income_life_expectancy", suffix, ".gif"))
   pngs <- sort(list.files(frames, pattern = "\\.png$", full.names = TRUE))
-  status <- system2("gifski", c("--fps", "12", "--quality", "85", "--width", "1000",
+  status <- system2("gifski", c("--fps", "20", "--quality", "85", "--width", "1000",
                                 "-o", shQuote(gif), shQuote(pngs)))
   stopifnot(status == 0)
   message("wrote ", gif, " (", length(pngs), " frames)")
