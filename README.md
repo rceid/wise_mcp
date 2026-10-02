@@ -79,6 +79,12 @@ wise_mcp on 20 questions, and with How's Life? 2024's published figures where th
 [evals/desktop-checklist.md](evals/desktop-checklist.md) is the same list for checking Claude's
 answers by hand in Claude Desktop.
 
+## R charts
+
+[r/](r/) has two ggplot2 charts drawn from the same data: life satisfaction as a circular
+barplot grouped by region, and an animated chart of household income against life expectancy,
+2004-2023.
+
 ## Future work
 
 - Controls in the chart panel to change countries and baseline year
