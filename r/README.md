@@ -11,8 +11,8 @@ national totals, each value with its year.
 | Household income vs life expectancy, 2004-2023, animated | `animated_bubbles.R` | `output/income_life_expectancy.gif` |
 | The same, interactive: play, slider, hover | `interactive_bubbles.R` | `output/income_life_expectancy.html` (plotly) |
 
-Every output has a dark-background twin (`*_dark`). The circular barplot also has a title-free
-`*_card` version for the website.
+Every output has a dark-background twin (`*_dark`). The circular barplot also has a `*_card`
+version for the website: interactive, 16:10, with a region legend in place of the country labels.
 
 ![Trust in national government across the OECD](output/trust_government_circular.png)
 

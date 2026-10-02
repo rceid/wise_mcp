@@ -8,8 +8,9 @@
 #
 # Writes, each with a dark-theme twin (*_dark):
 #   output/trust_government_circular.png       the chart
-#   output/trust_government_circular_card.png  the same without titles, for the website card
 #   output/trust_government_circular.html      interactive version (ggiraph): hover a bar
+#   output/trust_government_circular_card.html the website card: interactive, 16:10, no country
+#                                              labels, a region legend beside the circle
 
 suppressPackageStartupMessages({
   library(dplyr)
@@ -65,18 +66,14 @@ groups <- layout |>
   summarise(start = min(id) - 0.4, end = max(id) + 0.4, .groups = "drop") |>
   mutate(tooltip = as.character(region))
 
-circular_barplot <- function(p, titles = TRUE) {
-  ggplot(layout, aes(x = id, y = value)) +
+circular_barplot <- function(p, card = FALSE) {
+  chart <- ggplot(layout, aes(x = id, y = value)) +
     geom_col_interactive(
       aes(fill = region, tooltip = tooltip, data_id = iso3),
       width = 0.82, na.rm = TRUE
     ) +
     # OECD average: a dashed ring across every bar
     geom_hline(yintercept = average$value, colour = p$ink, linewidth = 0.35, linetype = "22") +
-    geom_text(
-      data = labels, aes(x = id, y = value + 3.5, label = text, angle = angle, hjust = hjust),
-      colour = p$ink2, size = 2.55, family = font, inherit.aes = FALSE
-    ) +
     # an arc under each group, in its colour
     geom_segment_interactive(
       data = groups,
@@ -85,8 +82,6 @@ circular_barplot <- function(p, titles = TRUE) {
     ) +
     scale_fill_manual(values = p$fill) +
     scale_colour_manual(values = p$fill) +
-    scale_y_continuous(limits = c(-55, 130)) +
-    coord_polar(start = 0) +
     labs(
       title = "Trust in national government across the OECD",
       subtitle = sprintf(
@@ -109,9 +104,43 @@ circular_barplot <- function(p, titles = TRUE) {
                                   margin = margin(b = 12), lineheight = 1.2),
       plot.margin = margin(4, 4, 4, 4),
       legend.position = "none"
+    )
+
+  if (!card) {
+    return(chart +
+      geom_text(
+        data = labels, aes(x = id, y = value + 3.5, label = text, angle = angle, hjust = hjust),
+        colour = p$ink2, size = 2.55, family = font, inherit.aes = FALSE
+      ) +
+      scale_y_continuous(limits = c(-55, 130)) +
+      coord_polar(start = 0))
+  }
+
+  # The website card: no country labels (the tooltip names each bar), so the circle can fill
+  # the frame, and a region legend in the space beside it
+  chart +
+    scale_y_continuous(limits = c(-38, 84)) +
+    coord_radial(start = 0, expand = FALSE) +
+    labs(
+      subtitle = sprintf(
+        "Share of people aged 15+, %s. Dashed ring: OECD average (%.0f%%).",
+        period, average$value
+      ),
+      caption = NULL, fill = NULL
     ) +
-    # the website card shows the chart on its own, with the title beside it
-    if (!titles) labs(title = NULL, subtitle = NULL, caption = NULL)
+    theme(
+      plot.title = element_text(colour = p$ink, size = 20, face = "bold", hjust = 0.5,
+                                margin = margin(t = 10, b = 4)),
+      # the circle fills only the middle 80% of its panel: negative margins let the panel run
+      # under the subtitle and off the bottom edge, so the circle fills the frame's height
+      plot.subtitle = element_text(colour = p$ink2, size = 12.5, hjust = 0.5, margin = margin(b = -30)),
+      plot.title.position = "plot",
+      plot.margin = margin(2, 10, -50, 10),
+      legend.position = "right",
+      legend.text = element_text(colour = p$ink2, size = 12.5),
+      legend.key.size = unit(14, "pt"),
+      legend.key.spacing.y = unit(5, "pt")
+    )
 }
 
 # The interactive version uses a system font (Helvetica on Macs; Windows substitutes Arial)
@@ -120,12 +149,13 @@ web_fonts <- gdtools::font_set(sans = "Helvetica")
 web_fonts$dependencies <- list() # don't attach Liberation fonts for the unused families
 
 # Hover styling for the interactive version, in the chart's own palette
-interactive <- function(p) {
+interactive <- function(p, card = FALSE) {
   font <<- "Helvetica"
   on.exit(font <<- "Helvetica Neue")
   girafe(
-    ggobj = circular_barplot(p),
-    width_svg = 7, height_svg = 7.4, font_set = web_fonts, bg = p$bg,
+    ggobj = circular_barplot(p, card),
+    width_svg = if (card) 8 else 7, height_svg = if (card) 5 else 7.4,
+    font_set = web_fonts, bg = p$bg,
     options = list(
       opts_hover(css = sprintf("stroke:%s;stroke-width:1.5px;", p$ink)),
       opts_hover_inv(css = "opacity:0.35;"),
@@ -153,14 +183,15 @@ for (theme in names(palettes)) {
 
   ggsave(paste0(out(""), ".png"), circular_barplot(p),
          width = 7, height = 7.4, dpi = 220, device = "png", type = "cairo")
-  ggsave(paste0(out("_card"), ".png"), circular_barplot(p, titles = FALSE),
-         width = 6.4, height = 6.4, dpi = 220, device = "png", type = "cairo")
-  widget <- interactive(p)
-  widget$sizingPolicy$padding <- 0 # fill the page (or the website's frame) edge to edge
-  widget$sizingPolicy$browser$fill <- TRUE
-  htmlwidgets::saveWidget(widget, paste0(out(""), ".html"),
-                          selfcontained = TRUE, background = p$bg,
-                          title = "Trust in national government across the OECD")
-  unlink(paste0(out(""), "_files"), recursive = TRUE) # saveWidget's leftover libraries
-  message("wrote ", basename(out("")), " (.png, _card.png, .html)")
+  for (card in c(FALSE, TRUE)) {
+    file <- out(if (card) "_card" else "")
+    widget <- interactive(p, card)
+    widget$sizingPolicy$padding <- 0 # fill the page (or the website's frame) edge to edge
+    widget$sizingPolicy$browser$fill <- TRUE
+    htmlwidgets::saveWidget(widget, paste0(file, ".html"),
+                            selfcontained = TRUE, background = p$bg,
+                            title = "Trust in national government across the OECD")
+    unlink(paste0(file, "_files"), recursive = TRUE) # saveWidget's leftover libraries
+  }
+  message("wrote ", basename(out("")), " (.png, .html, _card.html)")
 }
