@@ -23,6 +23,17 @@ panel <- read_csv(here("data", "income_life_expectancy.csv"), show_col_types = F
 
 x_ticks <- c(20000, 30000, 50000, 70000)
 
+# animation_button only makes Play; add a Pause beside it
+# (list(NA) serialises to [null], where list(NULL) would give [{}])
+add_pause <- function(w) {
+  w$x$layout$updatemenus[[1]]$buttons[[2]] <- list(
+    label = "Pause", method = "animate",
+    args = list(list(NA), list(mode = "immediate", transition = list(duration = 0),
+                               frame = list(duration = 0, redraw = FALSE)))
+  )
+  w
+}
+
 bubbles <- function(p) {
   axis <- function(title) {
     list(title = list(text = title, font = list(size = 12, color = p$ink3)),
@@ -37,12 +48,13 @@ bubbles <- function(p) {
       marker = list(size = 12, opacity = 0.88, line = list(width = 1, color = p$bg)),
       hovertemplate = paste(
         "<b>%{text}</b><br>Income $%{x:,.0f}<br>Life expectancy %{y:.1f} years",
-        "<extra>%{fullData.name}</extra>"
+        "<extra></extra>"
       )
     ) |>
     layout(
       title = list(
-        text = "<b>Richer and longer-lived, until COVID</b>",
+        text = paste0("<b>Life expectancy versus income</b><br><span style=\"font-size:13px;color:",
+                      p$ink3, "\">Trends of longevity and prosperity, until COVID</span>"),
         x = 0.02, xanchor = "left", y = 0.97, yref = "container", yanchor = "top",
         font = list(size = 18, color = p$ink)
       ),
@@ -58,7 +70,7 @@ bubbles <- function(p) {
                     font = list(size = 11, color = p$ink2), itemclick = "toggleothers"),
       hoverlabel = list(bgcolor = p$bg, bordercolor = p$grid,
                         font = list(color = p$ink, size = 12)),
-      margin = list(t = 60, r = 20, b = 40, l = 60)
+      margin = list(t = 80, r = 20, b = 60, l = 60)
     ) |>
     animation_opts(frame = 600, transition = 600, easing = "linear", redraw = FALSE) |>
     animation_slider(
@@ -67,9 +79,10 @@ bubbles <- function(p) {
       activebgcolor = p$fill[1], bgcolor = p$grid, pad = list(t = 50)
     ) |>
     animation_button(
-      x = 0, xanchor = "left", y = -0.18, yanchor = "top",
+      x = 0, xanchor = "left", y = -0.3, yanchor = "top",
       font = list(color = p$ink), bgcolor = p$bg, bordercolor = p$grid
     ) |>
+    add_pause() |>
     config(displayModeBar = FALSE, responsive = TRUE)
 }
 
