@@ -21,9 +21,6 @@ panel <- read_csv(here("data", "income_life_expectancy.csv"), show_col_types = F
   inner_join(regions, by = "iso3") |>
   arrange(year, region, iso3)
 
-# A few countries worth following, labelled as they move
-labelled <- c("USA", "MEX", "JPN", "LUX", "KOR")
-
 x_ticks <- c(20000, 30000, 50000, 70000)
 
 bubbles <- function(p) {
@@ -42,11 +39,6 @@ bubbles <- function(p) {
         "<b>%{text}</b><br>Income $%{x:,.0f}<br>Life expectancy %{y:.1f} years",
         "<extra>%{fullData.name}</extra>"
       )
-    ) |>
-    add_text(
-      data = filter(panel, iso3 %in% labelled),
-      text = ~country, textposition = "top center", showlegend = FALSE, hoverinfo = "skip",
-      textfont = list(size = 11, color = p$ink2)
     ) |>
     layout(
       title = list(

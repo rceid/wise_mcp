@@ -56,7 +56,7 @@ labels <- layout |>
     angle = 90 - 360 * (id - 0.5) / n_bars,
     hjust = ifelse(angle < -90, 1, 0),
     angle = ifelse(angle < -90, angle + 180, angle),
-    text = sprintf("%s  %.0f%%", country, value)
+    text = country
   )
 
 # One arc under each group
